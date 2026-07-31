@@ -99,25 +99,23 @@ st.subheader(
 
 if "cargo" not in st.session_state:
 
-  st.session_state.cargo = pd.DataFrame(
+    st.session_state.cargo = pd.DataFrame(
 
-    [
-        {
-            "Goods Description": "",
-            "Pallet Quantity": 1,
-            "Width (cm)": 120,
-            "Length (cm)": 80,
-            "Height (cm)": 0,
-            "Weight (kg)": 0,
-            "Allow Rotation": True
-        }
-    ]
+        [
+            {
+                "Goods Description": "",
+                "Pallet Quantity": 1,
+                "Width (cm)": 120,
+                "Length (cm)": 80,
+                "Height (cm)": 0,
+                "Weight (kg)": 0,
+                "Allow Rotation": True
+            }
+        ]
 
-)
-
+    )
 
     st.session_state.cargo.index.name = None
-
 
 
 edited = st.data_editor(
