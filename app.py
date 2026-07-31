@@ -1,13 +1,12 @@
 import streamlit as st
 import pandas as pd
 
-# --- STYLING & PAGE INITIALIZATION ---
+# --- INITIALIZATION ---
 st.set_page_config(
     page_title="Optimizer", 
     layout="wide"
 )
 st.title("Truck Load Optimizer")
-st.markdown("Calculate gap-free layouts.")
 
 # --- ENGINE ---
 class WebTruckOptimizer:
@@ -32,28 +31,28 @@ class WebTruckOptimizer:
         self.max_drive = 11500  
         self.max_tridem = 24000  
 
-    def generate_blueprint(self, manifest):
+    def generate_blueprint(self, mft):
         all_pallets = []
-        for p in manifest:
+        for p in mft:
             for _ in range(int(p['qty'])):
                 orig_w = p['width']
                 orig_l = p['len']
                 
                 if p.get('auto_rotate', True):
-                    max_w = self.trailer_width * 100
+                    max_w = 245
                     if orig_l > orig_w and orig_l <= max_w:
-                        fit_width = orig_l
-                        fit_length = orig_w
+                        fit_w = orig_l
+                        fit_l = orig_w
                     else:
-                        fit_width = orig_w
-                        fit_length = orig_l
+                        fit_w = orig_w
+                        fit_l = orig_l
                 else:
-                    fit_width = orig_w
-                    fit_length = orig_l
+                    fit_w = orig_w
+                    fit_l = orig_l
 
                 all_pallets.append({
-                    'len': fit_length / 100.0, 
-                    'width': fit_width, 
+                    'len': fit_l / 100.0, 
+                    'width': fit_w, 
                     'wt': p['wt'], 
                     'name': p['name']
                 })
@@ -77,7 +76,7 @@ class WebTruckOptimizer:
                 if remaining >= 2:
                     p1 = all_pallets[p_idx]
                     p2 = all_pallets[p_idx+1]
-                    max_w = self.trailer_width * 100
+                    max_w = 245
                     if (p1['width'] + p2['width']) <= max_w:
                         layout.append({
                             'type': 'DOUBLE', 
@@ -92,7 +91,7 @@ class WebTruckOptimizer:
                             'p': [p1], 
                             'len': p1['len'], 
                             'wt': p1['wt'],
-                            'note': "Width limit exceeded!"
+                            'note': "Over width!"
                         })
                         p_idx += 1
                 else:
@@ -146,15 +145,15 @@ class WebTruckOptimizer:
         }
 
 # --- CONTROL PANEL ---
-st.sidebar.header("Step 1: Profile")
-t_opts = ["Curtainsider (24t)", "Frigo Truck (22t)"]
-truck_selection = st.sidebar.selectbox("Truck Type", t_opts)
+st.sidebar.header("Step 1")
+t_opts = ["Curtainsider (24t)", "Frigo (22t)"]
+truck_selection = st.sidebar.selectbox("Truck", t_opts)
 engine = WebTruckOptimizer(truck_selection)
 
-st.sidebar.header("Step 2: Add Batches")
+st.sidebar.header("Step 2")
 if 'manifest' not in st.session_state:
     st.session_state.manifest = [{
-        'name': 'Heavy Pallets', 'qty': 17, 
+        'name': 'Pallets', 'qty': 17, 
         'width': 100, 'len': 120, 'wt': 1300, 
         'auto_rotate': True
     }]
@@ -173,25 +172,25 @@ with st.sidebar.form("add_pallet_form"):
             'len': p_len, 'wt': p_wt, 'auto_rotate': p_rotate
         })
 
-if st.sidebar.button("Clear Manifest"):
+if st.sidebar.button("Clear"):
     st.session_state.manifest = []
     st.rerun()
 
-# --- MAIN INTERFACE DISPLAY ---
+# --- MAIN DISPLAY ---
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Manifest")
     if len(st.session_state.manifest) == 0:
-        st.info("Truck empty.")
+        st.info("Empty.")
     else:
         df_base = pd.DataFrame(st.session_state.manifest)
         edited_df = st.data_editor(
             df_base,
             column_config={
                 "name": "Desc", "qty": "Qty",
-                "width": "W (cm)", "len": "L (cm)", "wt": "Wt (kg)",
-                "auto_rotate": st.column_config.CheckboxColumn("Rotate?")
+                "width": "W", "len": "L", "wt": "Wt",
+                "auto_rotate": st.column_config.CheckboxColumn("Rotate")
             },
             hide_index=True,
             use_container_width=True
@@ -203,56 +202,66 @@ if len(st.session_state.manifest) > 0:
     res = engine.analyze(layout)
     
     with col2:
-        st.subheader("Scale Weights")
-        st.metric("Total Load", f"{res['cargo_wt']:,} kg")
-        st.metric("Drive Axle", f"{res['drive']:,} kg")
-        st.metric("Trailer Axles", f"{res['tridem']:,} kg")
+        st.subheader("Weights")
+        st.metric("Total", f"{res['cargo_wt']:,} kg")
+        st.metric("Drive", f"{res['drive']:,} kg")
+        st.metric("Trailer", f"{res['tridem']:,} kg")
 
-    st.subheader("Loading Map Layout")
-    st.markdown("--- [ FRONT HEADBOARD ] ---")
+    st.subheader("Trailer Diagram Map")
     
-    accumulated_length = 0.0
-    next_meter_marker = 1.0
+    # Styles
+    st.markdown("""
+        <style>
+        .t-box { border: 2px solid #333; background: #fafafa; padding: 5px; }
+        .m-row { border-bottom: 1px dashed #ccc; min-height: 40px; display: flex; align-items: center; position: relative; }
+        .m-lbl { position: absolute; left: 5px; color: #888; font-size: 11px; font-weight: bold; }
+        .p-cnt { display: flex; justify-content: space-around; width: 100%; padding-left: 50px; }
+        .p-blk { background: #1E3A8A; color: white; border-radius: 4px; text-align: center; font-size: 11px; min-width: 100px; padding: 2px; }
+        .p-sng { background: #0284C7; margin: 0 auto; }
+        .e-txt { color: #aaa; font-size: 11px; padding-left: 50px; }
+        </style>
+    """, unsafe_allow_html=True)
+
+    h_str = "<div class='t-box'>"
+    h_str += "<div style='text-align:center;font-size:12px;font-weight:bold;'>FRONT</div>"
     
-    for r_idx, row in enumerate(layout, 1):
-        row_len = row['len']
-        row_start = accumulated_length
-        row_end = accumulated_length + row_len
+    c_idx = 0
+    t_rows = len(layout)
+    
+    for m in range(1, 15):
+        h_str += "<div class='m-row'>"
+        h_str += f"<span class='m-lbl'>{m}M</span>"
         
-        while next_meter_marker <= row_end and next_meter_marker <= 13.6:
-            if next_meter_marker <= row_start:
-                st.markdown(f"METER LINE: {next_meter_marker:.0f} M")
-            elif row_start < next_meter_marker < row_end:
-                st.markdown(f"METER LINE: {next_meter_marker:.0f} M (Row {r_idx})")
-            next_meter_marker += 1.0
+        if c_idx < t_rows:
+            row = layout[c_idx]
+            h_str += "<div class='p-cnt'>"
             
-        note_str = row.get('note', '')
-        
-        if row['type'] == 'DOUBLE':
-            if len(row['p']) == 2:
-                p1, p2 = row['p'][0], row['p'][1]
-                lbl = f"Row {r_idx:02d} [Double - {row_len*100:.0f}cm]: "
-                lbl += f"[{p1['name']}|W:{p1['width']}cm|{p1['wt']}kg] + "
-                lbl += f"[{p2['name']}|W:{p2['width']}cm|{p2['wt']}kg]"
-                st.code(lbl, language="text")
+            if row['type'] == 'DOUBLE':
+                if len(row['p']) == 2:
+                    p1_n = row['p'][0]['name']
+                    p1_w = row['p'][0]['wt']
+                    p2_n = row['p'][1]['name']
+                    p2_w = row['p'][1]['wt']
+                    h_str += f"<div class='p-blk'>{p1_n}<br>{p1_w}kg</div>"
+                    h_str += f"<div class='p-blk'>{p2_n}<br>{p2_w}kg</div>"
+                else:
+                    p1_n = row['p'][0]['name']
+                    p1_w = row['p'][0]['wt']
+                    h_str += f"<div class='p-blk'>{p1_n}<br>{p1_w}kg</div>"
+                    h_str += "<div class='p-blk' style='background:#ccc;'>BLOCK</div>"
             else:
-                p1 = row['p'][0]
-                lbl = f"Row {r_idx:02d} [Double]: "
-                lbl += f"[{p1['name']}|W:{p1['width']}cm|{p1['wt']}kg] + "
-                lbl += "[BLOCKING REQD]"
-                st.code(lbl, language="text")
+                p1_n = row['p'][0]['name']
+                p1_w = row['p'][0]['wt']
+                h_str += f"<div class='p-blk p-sng'>{p1_n}<br>{p1_w}kg</div>"
+                
+            h_str += "</div>"
+            c_idx += 1
         else:
-            p1 = row['p'][0]
-            warn_decorator = " WARN: " if note_str else ""
-            lbl = f"Row {r_idx:02d} [Center Single]: "
-            lbl += f"--- [{p1['name']}|W:{p1['width']}cm|{p1['wt']}kg] ---"
-            lbl += f"{warn_decorator}{note_str}"
-            st.code(lbl, language="text")
+            h_str += "<span class='e-txt'>Empty Zone</span>"
             
-        accumulated_length = row_end
-
-    while next_meter_marker <= 13.0:
-        st.markdown(f"METER LINE: {next_meter_marker:.0f} M (EMPTY)")
-        next_meter_marker += 1.0
+        h_str += "</div>"
         
-    st.markdown("--- [ REAR TRAILER DOORS ] ---")
+    h_str += "<div style='text-align:center;font-size:12px;font-weight:bold;'>REAR</div>"
+    h_str += "</div>"
+    
+    st.markdown(h_str, unsafe_allow_html=True)
