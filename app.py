@@ -23,8 +23,11 @@ from optimizer import optimize_load
 # ---------------------------------
 
 st.set_page_config(
+
     page_title="Truck Load Optimizer",
+
     layout="wide"
+
 )
 
 
@@ -51,10 +54,6 @@ truck = TRUCKS[truck_name]
 
 
 
-# ---------------------------------
-# Truck info
-# ---------------------------------
-
 st.sidebar.header(
     "Trailer Information"
 )
@@ -71,19 +70,6 @@ st.sidebar.write(
 st.sidebar.write(
     f"Legal GVW: {truck.legal_gross:,} kg"
 )
-
-
-
-st.sidebar.header(
-    "Empty Axle Weights"
-)
-
-
-for i, axle in enumerate(truck.empty_axles):
-
-    st.sidebar.write(
-        f"Axle {i+1}: {axle:,} kg"
-    )
 
 
 
@@ -115,7 +101,10 @@ if "cargo" not in st.session_state:
     )
 
 
-with st.form("cargo_form"):
+
+with st.form(
+    "cargo_form"
+):
 
 
     col1, col2, col3 = st.columns(3)
@@ -123,62 +112,96 @@ with st.form("cargo_form"):
 
     with col1:
 
+
         description = st.text_input(
             "Goods Description"
         )
 
+
         quantity = st.number_input(
+
             "Pallet Quantity",
+
             min_value=1,
+
             value=1,
+
             step=1
+
         )
 
 
     with col2:
 
+
         width = st.number_input(
+
             "Width (cm)",
+
             min_value=1,
+
             value=120,
+
             step=1
+
         )
 
 
         length = st.number_input(
+
             "Length (cm)",
+
             min_value=1,
+
             value=80,
+
             step=1
+
         )
 
 
     with col3:
 
+
         height = st.number_input(
+
             "Height (cm)",
+
             min_value=1,
+
             value=240,
+
             step=1
+
         )
 
 
         weight = st.number_input(
+
             "Weight (kg)",
+
             min_value=1,
+
             value=1000,
+
             step=1
+
         )
 
 
     rotation = st.checkbox(
+
         "Allow Rotation",
+
         value=True
+
     )
 
 
     submitted = st.form_submit_button(
+
         "➕ Add Cargo"
+
     )
 
 
@@ -189,21 +212,29 @@ if submitted:
     new_row = pd.DataFrame(
 
         [
+
             {
 
-                "Goods Description": description,
+                "Goods Description":
+                    description,
 
-                "Pallet Quantity": quantity,
+                "Pallet Quantity":
+                    quantity,
 
-                "Width (cm)": width,
+                "Width (cm)":
+                    width,
 
-                "Length (cm)": length,
+                "Length (cm)":
+                    length,
 
-                "Height (cm)": height,
+                "Height (cm)":
+                    height,
 
-                "Weight (kg)": weight,
+                "Weight (kg)":
+                    weight,
 
-                "Allow Rotation": rotation
+                "Allow Rotation":
+                    rotation
 
             }
 
@@ -215,8 +246,11 @@ if submitted:
     st.session_state.cargo = pd.concat(
 
         [
+
             st.session_state.cargo,
+
             new_row
+
         ],
 
         ignore_index=True
@@ -241,28 +275,29 @@ st.dataframe(
 )
 
 
+
 # ---------------------------------
-# Optimizer
+# Optimize
 # ---------------------------------
 
 st.info(
-    "Optimization priority: Height → Weight → Axle legality → Space efficiency"
+
+    "Optimization priority: "
+    "Legal axles → Maximum legal cargo → "
+    "Height → Space efficiency"
+
 )
 
 
 
 if st.button(
+
     "🚀 Optimize Load"
+
 ):
 
-    st.session_state.optimized = True
 
-
-
-if "optimized" in st.session_state:
-
-
-    pallets = optimize_load(
+    pallets, rejected = optimize_load(
 
         truck,
 
@@ -271,180 +306,237 @@ if "optimized" in st.session_state:
     )
 
 
-else:
+    st.session_state.pallets = pallets
+
+    st.session_state.rejected = rejected
 
 
-    pallets = pack_cargo(
+
+# ---------------------------------
+# Display results
+# ---------------------------------
+
+if "pallets" in st.session_state:
+
+
+    pallets = st.session_state.pallets
+
+
+    rejected = st.session_state.rejected
+
+
+
+    # -----------------------------
+    # Drawing
+    # -----------------------------
+
+
+    st.subheader(
+
+        "📐 Trailer Layout"
+
+    )
+
+
+    fig, used_length, free_length = draw_trailer(
 
         truck,
 
-        st.session_state.cargo
+        pallets
+
+    )
+
+
+    st.pyplot(
+
+        fig,
+
+        use_container_width=True
 
     )
 
 
 
-# ---------------------------------
-# Trailer drawing
-# ---------------------------------
-
-st.subheader(
-    "📐 Trailer Layout"
-)
+    # -----------------------------
+    # Space
+    # -----------------------------
 
 
-fig, used_length, free_length = draw_trailer(
+    st.subheader(
 
-    truck,
-
-    pallets
-
-)
-
-
-st.pyplot(
-
-    fig,
-
-    use_container_width=True
-
-)
-
-
-
-# ---------------------------------
-# Space report
-# ---------------------------------
-
-st.subheader(
-    "📏 Trailer Utilization"
-)
-
-
-c1, c2, c3 = st.columns(3)
-
-
-c1.metric(
-
-    "Used Length",
-
-    f"{used_length:.2f} m"
-
-)
-
-
-c2.metric(
-
-    "Free Length",
-
-    f"{free_length:.2f} m"
-
-)
-
-
-c3.metric(
-
-    "Utilization",
-
-    f"{used_length/truck.trailer_length*100:.1f}%"
-
-)
-
-
-
-# ---------------------------------
-# Axle report
-# ---------------------------------
-
-axle_loads = calculate_axle_loads(
-
-    truck,
-
-    pallets
-
-)
-
-
-axle_results = check_axles(
-
-    truck,
-
-    axle_loads
-
-)
-
-
-gross = calculate_gross_weight(
-
-    axle_loads
-
-)
-
-
-
-st.subheader(
-    "⚖️ Axle Weight Report"
-)
-
-
-
-for i, axle in enumerate(axle_results):
-
-
-    message = (
-
-        f"Axle {i+1}: "
-
-        f"{axle['weight']:,.0f} kg "
-
-        f"/ "
-
-        f"{axle['limit']:,.0f} kg"
+        "📏 Trailer Utilization"
 
     )
 
 
-    if axle["legal"]:
+    c1, c2, c3 = st.columns(3)
+
+
+    c1.metric(
+
+        "Used Length",
+
+        f"{used_length:.2f} m"
+
+    )
+
+
+    c2.metric(
+
+        "Free Length",
+
+        f"{free_length:.2f} m"
+
+    )
+
+
+    c3.metric(
+
+        "Utilization",
+
+        f"{used_length/truck.trailer_length*100:.1f}%"
+
+    )
+
+
+
+    # -----------------------------
+    # Axles
+    # -----------------------------
+
+
+    st.subheader(
+
+        "⚖️ Axle Weight Report"
+
+    )
+
+
+    axle_loads = calculate_axle_loads(
+
+        truck,
+
+        pallets
+
+    )
+
+
+    axle_results = check_axles(
+
+        truck,
+
+        axle_loads
+
+    )
+
+
+    for i, axle in enumerate(axle_results):
+
+
+        text = (
+
+            f"Axle {i+1}: "
+
+            f"{axle['weight']:,.0f} kg / "
+
+            f"{axle['limit']:,.0f} kg"
+
+        )
+
+
+        if axle["legal"]:
+
+            st.success(
+
+                "🟢 " + text
+
+            )
+
+        else:
+
+            st.error(
+
+                "🔴 " + text + " OVERWEIGHT"
+
+            )
+
+
+
+    # -----------------------------
+    # Gross weight
+    # -----------------------------
+
+
+    gross = calculate_gross_weight(
+
+        axle_loads
+
+    )
+
+
+    st.subheader(
+
+        "🚛 Total Weight"
+
+    )
+
+
+    if gross <= truck.legal_gross:
+
 
         st.success(
-            "🟢 " + message
+
+            f"🟢 Total: {gross:,.0f} kg / "
+
+            f"{truck.legal_gross:,.0f} kg"
+
         )
+
 
     else:
 
+
         st.error(
-            "🔴 " + message + " OVERWEIGHT"
+
+            f"🔴 Total: {gross:,.0f} kg / "
+
+            f"{truck.legal_gross:,.0f} kg"
+
         )
 
 
 
-# ---------------------------------
-# Total weight
-# ---------------------------------
-
-st.subheader(
-    "🚛 Total Weight"
-)
+    # -----------------------------
+    # Rejected cargo
+    # -----------------------------
 
 
-
-if gross <= truck.legal_gross:
-
-
-    st.success(
-
-        f"🟢 Total: {gross:,.0f} kg / "
-        f"{truck.legal_gross:,.0f} kg"
-
-    )
+    if rejected:
 
 
-else:
+        st.subheader(
+
+            "⚠️ Cargo Not Loaded"
+
+        )
 
 
-    st.error(
+        for item in rejected:
 
-        f"🔴 Total: {gross:,.0f} kg / "
-        f"{truck.legal_gross:,.0f} kg"
 
-    )
+            st.warning(
+
+                f"{item['pallet']['Goods Description']} - "
+
+                f"{item['reason']}"
+
+            )
+
+    else:
+
+
+        st.success(
+
+            "✅ All pallets loaded"
+
+        )
