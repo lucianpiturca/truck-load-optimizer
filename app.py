@@ -70,10 +70,14 @@ class WebTruckOptimizer:
         p_idx = 0
         total_p = len(all_p)
         row_idx = 0
+        used_len = 0.0
 
         while p_idx < total_p:
             rem = total_p - p_idx
-            
+            next_len = 1.0
+            if (used_len + next_len) > self.trailer_length:
+                break
+                
             if row_idx < front_singles:
                 p1 = all_p[p_idx]
                 layout.append({
@@ -81,6 +85,7 @@ class WebTruckOptimizer:
                     'len': p1['len'], 'wt': p1['wt']
                 })
                 p_idx += 1
+                used_len += p1['len']
             else:
                 if rem >= 2 and row_idx % 2 == 0:
                     p1 = all_p[p_idx]
@@ -93,12 +98,14 @@ class WebTruckOptimizer:
                             'wt': p1['wt'] + p2['wt']
                         })
                         p_idx += 2
+                        used_len += max(p1['len'], p2['len'])
                     else:
                         layout.append({
                             'type': 'SINGLE_CENTER', 'p': [p1],
                             'len': p1['len'], 'wt': p1['wt']
                         })
                         p_idx += 1
+                        used_len += p1['len']
                 else:
                     p1 = all_p[p_idx]
                     layout.append({
@@ -106,7 +113,9 @@ class WebTruckOptimizer:
                         'len': p1['len'], 'wt': p1['wt']
                     })
                     p_idx += 1
+                    used_len += p1['len']
             row_idx += 1
+            
         return layout
 
     def analyze(self, layout):
@@ -213,68 +222,58 @@ if len(st.session_state.manifest) > 0:
 
         st.markdown("**Tractor Axles:**")
         if res['steer'] > engine.max_steer:
-            st.error(f"Axle 1 (Steer): {res['steer']:,} kg / Max: 10k kg")
+            st.error(f"Axle 1 (Steer): {res['steer']:,} kg")
         else:
-            st.success(f"Axle 1 (Steer): {res['steer']:,} kg / Max: 10k kg")
+            st.success(f"Axle 1 (Steer): {res['steer']:,} kg")
 
         if res['drive'] > engine.max_drive:
-            st.error(f"Axle 2 (Drive): {res['drive']:,} kg / Max: 11.5k kg")
+            st.error(f"Axle 2 (Drive): {res['drive']:,} kg")
         else:
-            st.success(f"Axle 2 (Drive): {res['drive']:,} kg / Max: 11.5k kg")
+            st.success(f"Axle 2 (Drive): {res['drive']:,} kg")
 
         st.markdown("**Trailer Axles:**")
         for idx, k in enumerate(['t1', 't2', 't3'], 3):
             v = res[k]
             if v > engine.max_axle_trailer:
-                st.error(f"Axle {idx}: {v:,} kg / Max: 8k kg")
+                st.error(f"Axle {idx}: {v:,} kg")
             else:
-                st.success(f"Axle {idx}: {v:,} kg / Max: 8k kg")
+                st.success(f"Axle {idx}: {v:,} kg")
 
     st.subheader("Real-Dimension Scaled Trailer Graph Map")
-    st.info(f"Length: {res['cargo_len']}m / {engine.trailer_length}m")
+    st.info(f"Length Used: {res['cargo_len']}m / {engine.trailer_length}m")
 
-    # --- NATIVE STREAMLIT SCALED GRAPH ENGINE ---
-    plot_data = []
+    # --- NO-OVERFLOW GRID BLUEPRINT GENERATOR ---
+    grid_rows = []
     current_y = 0.0
     
-    for idx, r in enumerate(layout):
-        r_len = r['len']
+    for idx, r in enumerate(layout, 1):
+        current_y += r['len']
+        row_pos = f"{current_y:.1f} M"
+        
         if r['type'] == 'DOUBLE':
             if len(r['p']) == 2:
                 p1, p2 = r['p'], r['p']
-                plot_data.append({
-                    "Truck Width (X)": p1['width'] / 2,
-                    "Truck Length (Y)": current_y + (p1['len'] / 2),
-                    "Weight": f"{p1['wt']} kg"
-                })
-                plot_data.append({
-                    "Truck Width (X)": engine.trailer_width - (p2['width'] / 2),
-                    "Truck Length (Y)": current_y + (p2['len'] / 2),
-                    "Weight": f"{p2['wt']} kg"
-                })
+                l_cell = f"[ {p1['name']} ({p1['wt']} kg) ]"
+                r_cell = f"[ {p2['name']} ({p2['wt']} kg) ]"
             else:
                 p1 = r['p']
-                plot_data.append({
-                    "Truck Width (X)": p1['width'] / 2,
-                    "Truck Length (Y)": current_y + (p1['len'] / 2),
-                    "Weight": f"{p1['wt']} kg"
-                })
+                l_cell = f"[ {p1['name']} ({p1['wt']} kg) ]"
+                r_cell = "[ VOID - LASH NEEDED ]"
         else:
             p1 = r['p']
-            plot_data.append({
-                "Truck Width (X)": engine.trailer_width / 2,
-                "Truck Length (Y)": current_y + (p1['len'] / 2),
-                "Weight": f"{p1['wt']} kg"
-            })
-        current_y += r_len
-
-    # Render a responsive scatter matrix map matching dimensions
-    chart_df = pd.DataFrame(plot_data)
-    st.scatter_chart(
-        chart_df,
-        x="Truck Width (X)",
-        y="Truck Length (Y)",
-        color="Weight",
-        size="Truck Width (X)",
+            l_cell = f"--- [ {p1['name']} ({p1['wt']} kg) ] ---"
+            r_cell = f"--- [ {p1['name']} ({p1['wt']} kg) ] ---"
+            
+        grid_rows.append({
+            "Trailer Position": row_pos,
+            "Left Side Column": l_cell,
+            "Right Side Column": r_cell,
+            "Total Row Weight (kg)": r['wt']
+        })
+        
+    grid_df = pd.DataFrame(grid_rows)
+    st.dataframe(
+        grid_df,
+        hide_index=True,
         use_container_width=True
     )
