@@ -4,12 +4,15 @@ import pandas as pd
 
 from truck import TRUCKS
 
-from packing import (
-    pack_cargo,
-    calculate_used_length
-)
+from packing import pack_cargo
 
 from drawing import draw_trailer
+
+from axles import (
+    calculate_axle_loads,
+    check_axles,
+    calculate_gross_weight
+)
 
 
 
@@ -30,7 +33,7 @@ st.title(
 
 
 # ---------------------------------
-# Select truck
+# Truck selection
 # ---------------------------------
 
 truck_name = st.sidebar.selectbox(
@@ -70,7 +73,6 @@ st.sidebar.write(
 )
 
 
-
 st.sidebar.header(
     "Empty Axle Weights"
 )
@@ -81,15 +83,13 @@ for i, axle in enumerate(
 ):
 
     st.sidebar.write(
-
         f"Axle {i+1}: {axle:,} kg"
-
     )
 
 
 
 # ---------------------------------
-# Cargo manifest
+# Cargo table
 # ---------------------------------
 
 st.subheader(
@@ -97,26 +97,18 @@ st.subheader(
 )
 
 
-
 if "cargo" not in st.session_state:
-
 
     st.session_state.cargo = pd.DataFrame(
 
         columns=[
 
             "Description",
-
             "Qty",
-
             "Width",
-
             "Length",
-
             "Height",
-
             "Weight",
-
             "Rotate"
 
         ]
@@ -134,7 +126,6 @@ edited = st.data_editor(
     use_container_width=True
 
 )
-
 
 
 st.session_state.cargo = edited
@@ -162,7 +153,6 @@ pallets = pack_cargo(
 st.subheader(
     "📐 Trailer Layout"
 )
-
 
 
 fig, used_length, free_length = draw_trailer(
@@ -193,7 +183,6 @@ st.subheader(
 )
 
 
-
 col1, col2, col3 = st.columns(3)
 
 
@@ -207,6 +196,7 @@ col1.metric(
 )
 
 
+
 col2.metric(
 
     "Free Length",
@@ -216,96 +206,132 @@ col2.metric(
 )
 
 
+
 col3.metric(
 
     "Utilization",
 
-    f"{used_length/truck.trailer_length*100:.1f}%"
+    f"{used_length / truck.trailer_length * 100:.1f}%"
 
 )
 
 
 
 # ---------------------------------
-# Weight calculation
+# Axle calculations
+# ---------------------------------
+
+axle_loads = calculate_axle_loads(
+
+    truck,
+
+    pallets
+
+)
+
+
+axle_results = check_axles(
+
+    truck,
+
+    axle_loads
+
+)
+
+
+
+gross = calculate_gross_weight(
+
+    axle_loads
+
+)
+
+
+
+# ---------------------------------
+# Axle report
 # ---------------------------------
 
 st.subheader(
-    "⚖️ Weight Summary"
+    "⚖️ Axle Weight Report"
 )
 
 
 
-cargo_weight = 0
+for index, axle in enumerate(
+
+    axle_results
+
+):
 
 
-for pallet in pallets:
+    percentage = (
 
-    cargo_weight += pallet["weight"]
+        axle["weight"]
 
+        /
 
-
-empty_weight = sum(
-
-    truck.empty_axles
-
-)
-
-
-
-gross_weight = (
-
-    cargo_weight
-
-    +
-
-    empty_weight
-
-)
-
-
-
-col1, col2 = st.columns(2)
-
-
-
-col1.metric(
-
-    "Cargo Weight",
-
-    f"{cargo_weight:,.0f} kg"
-
-)
-
-
-col2.metric(
-
-    "Gross Vehicle Weight",
-
-    f"{gross_weight:,.0f} kg"
-
-)
-
-
-
-# ---------------------------------
-# Status
-# ---------------------------------
-
-if gross_weight <= truck.legal_gross:
-
-
-    st.success(
-
-        "🟢 Gross weight is legal"
+        axle["limit"]
 
     )
 
-else:
 
+    text = (
+
+        f"Axle {index+1}: "
+
+        f"{axle['weight']:,.0f} kg "
+
+        f"/ "
+
+        f"{axle['limit']:,.0f} kg"
+
+    )
+
+
+    if axle["legal"]:
+
+        st.success(
+
+            "🟢 " + text
+
+        )
+
+    else:
+
+        st.error(
+
+            "🔴 " + text + " OVERWEIGHT"
+
+        )
+
+
+
+# ---------------------------------
+# Total weight
+# ---------------------------------
+
+st.subheader(
+    "🚛 Total Weight"
+)
+
+
+
+if gross <= truck.legal_gross:
+
+    st.success(
+
+        f"🟢 Total {gross:,.0f} kg / "
+        f"{truck.legal_gross:,.0f} kg"
+
+    )
+
+
+else:
 
     st.error(
 
-        "🔴 Gross weight exceeds 40 tons"
+        f"🔴 Total {gross:,.0f} kg / "
+        f"{truck.legal_gross:,.0f} kg"
 
     )
