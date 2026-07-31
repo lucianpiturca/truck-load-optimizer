@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 
 st.set_page_config(
-    page_title="Optimizer",
+    page_title="App",
     layout="wide"
 )
-st.title("5-Axle Load Optimizer")
+st.title("Optimizer")
 
 class WebTruckOptimizer:
     def __init__(self, t_type):
@@ -79,7 +79,6 @@ class WebTruckOptimizer:
                 break
                 
             if row_idx < front_singles:
-                # Direct dictionary extraction
                 p1 = all_p[p_idx]
                 layout.append({
                     'type': 'SINGLE_CENTER', 'p': p1,
@@ -215,22 +214,23 @@ if len(st.session_state.manifest) > 0:
         res = engine.analyze(layout)
 
     with c2:
-        st.subheader("5-Axle Scale Weight Report")
-        if res['gross_total'] > engine.max_total_weight:
-            st.error(f"OVERWEIGHT GROSS: {res['gross_total']:,} kg")
+        st.subheader("Scale Report")
+        if res['cargo_wt'] > engine.max_cargo_wt:
+            err_w = res['cargo_wt'] - engine.max_cargo_wt
+            st.error(f"OVERWEIGHT: {err_w:,} kg Over Max!")
         else:
-            st.success(f"Total Gross: {res['gross_total']:,} kg (LEGAL)")
+            st.success("Cargo Weight Legal")
 
         st.markdown("**Tractor Axles:**")
         if res['steer'] > engine.max_steer:
-            st.error(f"Axle 1 (Steer): {res['steer']:,} kg")
+            st.error(f"Axle 1: {res['steer']:,} kg")
         else:
-            st.success(f"Axle 1 (Steer): {res['steer']:,} kg")
+            st.success(f"Axle 1: {res['steer']:,} kg")
 
         if res['drive'] > engine.max_drive:
-            st.error(f"Axle 2 (Drive): {res['drive']:,} kg")
+            st.error(f"Axle 2: {res['drive']:,} kg")
         else:
-            st.success(f"Axle 2 (Drive): {res['drive']:,} kg")
+            st.success(f"Axle 2: {res['drive']:,} kg")
 
         st.markdown("**Trailer Axles:**")
         for idx, k in enumerate(['t1', 't2', 't3'], 3):
@@ -240,10 +240,10 @@ if len(st.session_state.manifest) > 0:
             else:
                 st.success(f"Axle {idx}: {v:,} kg")
 
-    st.subheader("Real-Dimension Scaled Trailer Graph Map")
+    st.subheader("Trailer Grid Blueprint Map")
     st.info(f"Length Used: {res['cargo_len']}m / {engine.trailer_length}m")
 
-    # --- NO-OVERFLOW GRID BLUEPRINT GENERATOR ---
+    # --- MINIMAL SHORT-LINE TABLE GENERATOR ---
     grid_rows = []
     current_y = 0.0
     
@@ -254,25 +254,24 @@ if len(st.session_state.manifest) > 0:
         if r['type'] == 'DOUBLE':
             p_list = r['p']
             if len(p_list) == 2:
-                p1_item = p_list[0]
-                p2_item = p_list[1]
-                l_cell = "[ " + str(p1_item['name']) + " (" + str(p1_item['wt']) + " kg) ]"
-                r_cell = "[ " + str(p2_item['name']) + " (" + str(p2_item['wt']) + " kg) ]"
+                p1_item = p_list
+                p2_item = p_list
+                lc = f"Box {p1_item['wt']}kg"
+                rc = f"Box {p2_item['wt']}kg"
             else:
-                p1_item = p_list[0]
-                l_cell = "[ " + str(p1_item['name']) + " (" + str(p1_item['wt']) + " kg) ]"
-                r_cell = "[ LASH VOID ]"
+                p1_item = p_list
+                lc = f"Box {p1_item['wt']}kg"
+                rc = "Void Space"
         else:
-            # Correct dictionary reference to dictionary object
             p1_item = r['p']
-            l_cell = "--- [ " + str(p1_item['name']) + " (" + str(p1_item['wt']) + " kg) ] ---"
-            r_cell = "--- [ " + str(p1_item['name']) + " (" + str(p1_item['wt']) + " kg) ] ---"
+            lc = f"Center Line"
+            rc = f"Box {p1_item['wt']}kg"
             
         grid_rows.append({
-            "Trailer Position": row_pos,
-            "Left Side Column": l_cell,
-            "Right Side Column": r_cell,
-            "Total Row Weight (kg)": r['wt']
+            "Position": row_pos,
+            "Left Column": lc,
+            "Right Column": rc,
+            "Weight": r['wt']
         })
         
     grid_df = pd.DataFrame(grid_rows)
