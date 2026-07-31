@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 
-from optimizer import optimize_load
 
 from truck import TRUCKS
 
@@ -14,6 +13,8 @@ from axles import (
     check_axles,
     calculate_gross_weight
 )
+
+from optimizer import optimize_load
 
 
 
@@ -51,7 +52,7 @@ truck = TRUCKS[truck_name]
 
 
 # ---------------------------------
-# Truck information
+# Truck info
 # ---------------------------------
 
 st.sidebar.header(
@@ -63,15 +64,14 @@ st.sidebar.write(
     f"Length: {truck.trailer_length:.2f} m"
 )
 
-
 st.sidebar.write(
     f"Width: {truck.trailer_width:.2f} m"
 )
 
-
 st.sidebar.write(
     f"Legal GVW: {truck.legal_gross:,} kg"
 )
+
 
 
 st.sidebar.header(
@@ -79,9 +79,7 @@ st.sidebar.header(
 )
 
 
-for i, axle in enumerate(
-    truck.empty_axles
-):
+for i, axle in enumerate(truck.empty_axles):
 
     st.sidebar.write(
         f"Axle {i+1}: {axle:,} kg"
@@ -98,6 +96,7 @@ st.subheader(
 )
 
 
+
 if "cargo" not in st.session_state:
 
     st.session_state.cargo = pd.DataFrame(
@@ -105,16 +104,34 @@ if "cargo" not in st.session_state:
         columns=[
 
             "Goods Description",
+
             "Pallet Quantity",
+
             "Width (cm)",
+
             "Length (cm)",
+
             "Height (cm)",
+
             "Weight (kg)",
+
             "Allow Rotation"
 
         ]
 
     )
+
+
+    st.session_state.cargo.index.name = None
+
+
+
+def update_cargo():
+
+    st.session_state.cargo = (
+        st.session_state.cargo_editor
+    )
+
 
 
 edited = st.data_editor(
@@ -129,53 +146,96 @@ edited = st.data_editor(
 
     key="cargo_editor",
 
+    on_change=update_cargo,
+
+
     column_config={
 
+
         "Goods Description":
+
             st.column_config.TextColumn(
                 "Goods Description"
             ),
 
 
+
         "Pallet Quantity":
+
             st.column_config.NumberColumn(
+
                 "Pallet Quantity",
+
                 min_value=1,
+
                 step=1
+
             ),
+
 
 
         "Width (cm)":
+
             st.column_config.NumberColumn(
+
                 "Width (cm)",
-                min_value=1
+
+                min_value=1,
+
+                step=1
+
             ),
+
 
 
         "Length (cm)":
+
             st.column_config.NumberColumn(
+
                 "Length (cm)",
-                min_value=1
+
+                min_value=1,
+
+                step=1
+
             ),
+
 
 
         "Height (cm)":
+
             st.column_config.NumberColumn(
+
                 "Height (cm)",
-                min_value=1
+
+                min_value=1,
+
+                step=1
+
             ),
+
 
 
         "Weight (kg)":
+
             st.column_config.NumberColumn(
+
                 "Weight (kg)",
-                min_value=1
+
+                min_value=1,
+
+                step=1
+
             ),
 
 
+
         "Allow Rotation":
+
             st.column_config.CheckboxColumn(
+
                 "Allow Rotation"
+
             )
 
     }
@@ -183,17 +243,20 @@ edited = st.data_editor(
 )
 
 
-st.session_state.cargo = edited
+
+# ---------------------------------
+# Optimizer
+# ---------------------------------
 
 st.info(
-    "Optimizer priority: Height → Weight → Axle legality → Space efficiency"
+    "Optimization priority: Height → Weight → Axle legality → Space efficiency"
 )
 
-# ---------------------------------
-# Packing
-# ---------------------------------
 
-if st.button("🚀 Optimize Load"):
+
+if st.button(
+    "🚀 Optimize Load"
+):
 
     st.session_state.optimized = True
 
@@ -201,27 +264,31 @@ if st.button("🚀 Optimize Load"):
 
 if "optimized" in st.session_state:
 
+
     pallets = optimize_load(
 
         truck,
 
-        edited
+        st.session_state.cargo
 
     )
 
+
 else:
+
 
     pallets = pack_cargo(
 
         truck,
 
-        edited
+        st.session_state.cargo
 
     )
 
 
+
 # ---------------------------------
-# Drawing
+# Trailer drawing
 # ---------------------------------
 
 st.subheader(
@@ -257,11 +324,10 @@ st.subheader(
 )
 
 
-col1, col2, col3 = st.columns(3)
+c1, c2, c3 = st.columns(3)
 
 
-
-col1.metric(
+c1.metric(
 
     "Used Length",
 
@@ -270,8 +336,7 @@ col1.metric(
 )
 
 
-
-col2.metric(
+c2.metric(
 
     "Free Length",
 
@@ -280,19 +345,18 @@ col2.metric(
 )
 
 
-
-col3.metric(
+c3.metric(
 
     "Utilization",
 
-    f"{used_length / truck.trailer_length * 100:.1f}%"
+    f"{used_length/truck.trailer_length*100:.1f}%"
 
 )
 
 
 
 # ---------------------------------
-# Axle calculations
+# Axle report
 # ---------------------------------
 
 axle_loads = calculate_axle_loads(
@@ -313,7 +377,6 @@ axle_results = check_axles(
 )
 
 
-
 gross = calculate_gross_weight(
 
     axle_loads
@@ -322,37 +385,18 @@ gross = calculate_gross_weight(
 
 
 
-# ---------------------------------
-# Axle report
-# ---------------------------------
-
 st.subheader(
     "⚖️ Axle Weight Report"
 )
 
 
 
-for index, axle in enumerate(
-
-    axle_results
-
-):
+for i, axle in enumerate(axle_results):
 
 
-    percentage = (
+    message = (
 
-        axle["weight"]
-
-        /
-
-        axle["limit"]
-
-    )
-
-
-    text = (
-
-        f"Axle {index+1}: "
+        f"Axle {i+1}: "
 
         f"{axle['weight']:,.0f} kg "
 
@@ -366,17 +410,13 @@ for index, axle in enumerate(
     if axle["legal"]:
 
         st.success(
-
-            "🟢 " + text
-
+            "🟢 " + message
         )
 
     else:
 
         st.error(
-
-            "🔴 " + text + " OVERWEIGHT"
-
+            "🔴 " + message + " OVERWEIGHT"
         )
 
 
@@ -393,9 +433,10 @@ st.subheader(
 
 if gross <= truck.legal_gross:
 
+
     st.success(
 
-        f"🟢 Total {gross:,.0f} kg / "
+        f"🟢 Total: {gross:,.0f} kg / "
         f"{truck.legal_gross:,.0f} kg"
 
     )
@@ -403,9 +444,10 @@ if gross <= truck.legal_gross:
 
 else:
 
+
     st.error(
 
-        f"🔴 Total {gross:,.0f} kg / "
+        f"🔴 Total: {gross:,.0f} kg / "
         f"{truck.legal_gross:,.0f} kg"
 
     )
