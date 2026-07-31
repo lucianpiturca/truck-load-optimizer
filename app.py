@@ -79,9 +79,10 @@ class WebTruckOptimizer:
                 break
                 
             if row_idx < front_singles:
+                # Direct dictionary extraction
                 p1 = all_p[p_idx]
                 layout.append({
-                    'type': 'SINGLE_CENTER', 'p': [p1],
+                    'type': 'SINGLE_CENTER', 'p': p1,
                     'len': p1['len'], 'wt': p1['wt']
                 })
                 p_idx += 1
@@ -101,7 +102,7 @@ class WebTruckOptimizer:
                         used_len += max(p1['len'], p2['len'])
                     else:
                         layout.append({
-                            'type': 'SINGLE_CENTER', 'p': [p1],
+                            'type': 'SINGLE_CENTER', 'p': p1,
                             'len': p1['len'], 'wt': p1['wt']
                         })
                         p_idx += 1
@@ -109,7 +110,7 @@ class WebTruckOptimizer:
                 else:
                     p1 = all_p[p_idx]
                     layout.append({
-                        'type': 'SINGLE_CENTER', 'p': [p1],
+                        'type': 'SINGLE_CENTER', 'p': p1,
                         'len': p1['len'], 'wt': p1['wt']
                     })
                     p_idx += 1
@@ -248,21 +249,24 @@ if len(st.session_state.manifest) > 0:
     
     for idx, r in enumerate(layout, 1):
         current_y += r['len']
-        row_pos = f"{current_y:.1f} M"
+        row_pos = str(current_y) + " M"
         
         if r['type'] == 'DOUBLE':
-            if len(r['p']) == 2:
-                p1, p2 = r['p'], r['p']
-                l_cell = f"[ {p1['name']} ({p1['wt']} kg) ]"
-                r_cell = f"[ {p2['name']} ({p2['wt']} kg) ]"
+            p_list = r['p']
+            if len(p_list) == 2:
+                p1_item = p_list[0]
+                p2_item = p_list[1]
+                l_cell = "[ " + str(p1_item['name']) + " (" + str(p1_item['wt']) + " kg) ]"
+                r_cell = "[ " + str(p2_item['name']) + " (" + str(p2_item['wt']) + " kg) ]"
             else:
-                p1 = r['p']
-                l_cell = f"[ {p1['name']} ({p1['wt']} kg) ]"
-                r_cell = "[ VOID - LASH NEEDED ]"
+                p1_item = p_list[0]
+                l_cell = "[ " + str(p1_item['name']) + " (" + str(p1_item['wt']) + " kg) ]"
+                r_cell = "[ LASH VOID ]"
         else:
-            p1 = r['p']
-            l_cell = f"--- [ {p1['name']} ({p1['wt']} kg) ] ---"
-            r_cell = f"--- [ {p1['name']} ({p1['wt']} kg) ] ---"
+            # Correct dictionary reference to dictionary object
+            p1_item = r['p']
+            l_cell = "--- [ " + str(p1_item['name']) + " (" + str(p1_item['wt']) + " kg) ] ---"
+            r_cell = "--- [ " + str(p1_item['name']) + " (" + str(p1_item['wt']) + " kg) ] ---"
             
         grid_rows.append({
             "Trailer Position": row_pos,
