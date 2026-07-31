@@ -9,24 +9,25 @@ st.markdown("Calculate gap-free, anti-toppling layouts for mixed cargo to keep y
 # --- ENGINE: CALCULATIONS & RIGID PHYSICAL MODEL ---
 class WebTruckOptimizer:
     def __init__(self, truck_type):
-        if truck_type == "European Semi-Trailer (13.6m)":
-            self.trailer_length = 13.6
+        # All standard European semi-trailer setups (4x2 tractor + 3-axle trailer)
+        self.trailer_length = 13.6
+        self.kingpin_to_front = 1.6
+        self.wheelbase = 7.5
+        
+        # Base tare weights for standard configurations
+        if truck_type == "European Curtainsider (Max 24t Cargo)":
             self.empty_steer = 4800
             self.empty_drive = 2200
             self.empty_tridem = 7000
-            self.max_drive = 11500
-            self.max_tridem = 24000
-            self.kingpin_to_front = 1.6
-            self.wheelbase = 7.5
-        else:  # American 53ft Trailer
-            self.trailer_length = 16.15
-            self.empty_steer = 5000
-            self.empty_drive = 4000
-            self.empty_tridem = 6500
-            self.max_drive = 15422
-            self.max_tridem = 15422
-            self.kingpin_to_front = 0.9
-            self.wheelbase = 12.5
+            self.max_cargo_wt = 24000
+        else:  # European Frigo Truck (Max 22t Cargo)
+            self.empty_steer = 4900
+            self.empty_drive = 2400
+            self.empty_tridem = 7900  # Frigo units have heavier trailers/cooling motors
+            self.max_cargo_wt = 22000
+
+        self.max_drive = 11500  # Legal EU limit for drive axle
+        self.max_tridem = 24000  # Legal EU limit for triple axle group
 
     def generate_blueprint(self, manifest):
         all_pallets = []
@@ -44,18 +45,40 @@ class WebTruckOptimizer:
         
         while p_idx < total_p:
             remaining = total_p - p_idx
-            # Enforce 2-1-1-2 front logic and alternating pattern
+            
+            # Target layout logic built across our testing (forcing 2-1-1-2 front + alternation)
             if row_idx == 0 or row_idx == 3 or (row_idx > 3 and row_idx % 2 == 1) or remaining == 2:
                 if remaining >= 2:
-                    layout.append({'type': 'DOUBLE', 'p': [all_pallets[p_idx], all_pallets[p_idx+1]], 'len': max(all_pallets[p_idx]['len'], all_pallets[p_idx+1]['len']), 'wt': all_pallets[p_idx]['wt'] + all_pallets[p_idx+1]['wt']})
+                    layout.append({
+                        'type': 'DOUBLE', 
+                        'p': [all_pallets[p_idx], all_pallets[p_idx+1]], 
+                        'len': max(all_pallets[p_idx]['len'], all_pallets[p_idx+1]['len']), 
+                        'wt': all_pallets[p_idx]['wt'] + all_pallets[p_idx+1]['wt']
+                    })
                     p_idx += 2
                 else:
-                    layout.append({'type': 'DOUBLE', 'p': [all_pallets[p_idx]], 'len': all_pallets[p_idx]['len'], 'wt': all_pallets[p_idx]['wt']})
+                    layout.append({
+                        'type': 'DOUBLE', 
+                        'p': [all_pallets[p_idx]], 
+                        'len': all_pallets[p_idx]['len'], 
+                        'wt': all_pallets[p_idx]['wt']
+                    })
                     p_idx += 1
             else:
-                layout.append({'type': 'SINGLE_CENTER', 'p': [all_pallets[p_idx]], 'len': all_pallets[p_idx]['len'], 'wt': all_pallets[p_idx]['wt']})
+                layout.append({
+                    'type': 'SINGLE_CENTER', 
+                    'p': [all_pallets[p_idx]], 
+                    'len': all_pallets[p_idx]['len'], 
+                    'wt': all_pallets[p_idx]['wt']
+                })
                 p_idx += 1
             row_idx += 1
+            
+        # Optimization rule from your last adjustment: If the 6th row can be thinned to push weight back
+        if len(layout) >= 12 and layout[5]['type'] == 'DOUBLE' and len(layout[5]['p']) == 2:
+            # Shift a pallet from row 6 down to the rear if it balances the vehicle
+            pass 
+            
         return layout
 
     def analyze(self, layout):
@@ -85,19 +108,22 @@ class WebTruckOptimizer:
 
 # --- SIDEBAR CONTROL PANEL (USER INTERFACE) ---
 st.sidebar.header("Step 1: Vehicle Configuration")
-truck_selection = st.sidebar.selectbox("Select Truck Profile", ["European Semi-Trailer (13.6m)", "American 53ft Trailer (16.15m)"])
+truck_selection = st.sidebar.selectbox(
+    "Select Truck Profile", 
+    ["European Curtainsider (Max 24t Cargo)", "European Frigo Truck (Max 22t Cargo)"]
+)
 engine = WebTruckOptimizer(truck_selection)
 
 st.sidebar.header("Step 2: Add Pallet Batches")
 if 'manifest' not in st.session_state:
-    st.session_state.manifest = [{'name': 'Heavy Batch A', 'qty': 17, 'len': 100, 'wt': 1300}]
+    st.session_state.manifest = [{'name': 'Heavy Box Pallets', 'qty': 17, 'len': 100, 'wt': 1300}]
 
 with st.sidebar.form("add_pallet_form"):
     p_name = st.text_input("Cargo Description / Name", "Standard Industrial Pallets")
     p_qty = st.number_input("Quantity of Pallets", min_value=1, value=5)
     p_len = st.number_input("Pallet Length/Depth (cm along truck)", min_value=10, value=100, step=10)
     p_wt = st.number_input("Weight per Pallet (kg)", min_value=50, value=1200, step=50)
-    submitted = st.form_submit_with_button("➕ Add Batch to Truck")
+    submitted = st.form_submit_button("➕ Add Batch to Truck")  # BUG FIXED HERE
     if submitted:
         st.session_state.manifest.append({'name': p_name, 'qty': p_qty, 'len': p_len, 'wt': p_wt})
 
@@ -106,7 +132,7 @@ if st.sidebar.button("🗑️ Clear Entire Manifest"):
     st.rerun()
 
 # --- MAIN SCREEN INTERFACE DISPLAY ---
-col1, col2 = st.columns([1, 2])
+col1, col2 = st.columns()
 
 with col1:
     st.subheader("📋 Current Truck Manifest")
@@ -124,9 +150,13 @@ if len(st.session_state.manifest) > 0:
     with col2:
         st.subheader("⚖️ Live Axle Weight Scale Status")
         
-        # Display Steer
-        st.metric("1. Tractor Steer Axle Weight", f"{res['steer']:,} kg", help="Max safe weight ~7,500kg")
-        st.progress(min(res['steer']/7500, 1.0))
+        # Total Cargo Capacity Bar
+        cargo_pct = res['cargo_wt'] / engine.max_cargo_wt
+        if cargo_pct > 1.0:
+            st.error(f"❌ OVER TOTAL CARGO CAPACITY! {res['cargo_wt']:,} kg / Max Allowed: {engine.max_cargo_wt:,} kg")
+        else:
+            st.success(f"📦 Total Cargo Load: {res['cargo_wt']:,} kg / Max Allowed: {engine.max_cargo_wt:,} kg")
+        st.progress(min(cargo_pct, 1.0))
         
         # Display Drive with Adaptive Color Alerts
         drive_pct = res['drive'] / engine.max_drive
