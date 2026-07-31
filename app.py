@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 
+from packing import pack_cargo
 from drawing import draw_trailer
 from truck import TRUCKS
 
@@ -40,10 +41,10 @@ if "cargo" not in st.session_state:
         "Qty",
         "Width",
         "Length",
+        "Height",
         "Weight",
         "Rotate"
     ])
-
 
 st.subheader("Cargo Manifest")
 
@@ -59,7 +60,17 @@ st.write("")
 
 st.subheader("Trailer Layout")
 
-sample = []
+pallets = pack_cargo(
+    truck,
+    edited
+)
+
+fig = draw_trailer(
+    truck,
+    pallets
+)
+
+st.pyplot(fig, use_container_width=True)
 
 fig = draw_trailer(truck, sample)
 
