@@ -38,7 +38,7 @@ class WebTruckOptimizer:
         self.max_axle_trailer = 8000
         self.max_total_weight = 40000
 
-    def generate_blueprint(self, mft):
+    def generate_blueprint(self, mft, front_offset_rows=0):
         all_p = []
         for p in mft:
             for _ in range(int(p['qty'])):
@@ -65,22 +65,29 @@ class WebTruckOptimizer:
         )
         
         layout = []
+        # Insert empty rows at the front if needed to push center of gravity back
+        for _ in range(front_offset_rows):
+            layout.append({
+                'type': 'EMPTY_ROW',
+                'p': [],
+                'len': 1.0,
+                'wt': 0.0
+            })
+            
         p_idx = 0
         total_p = len(all_p)
-        row_idx = 0
+        row_idx = len(layout)
         
-        # Balance Solver: Interleaves single rows to spread weight
+        # Advanced layout pattern engine
         while p_idx < total_p:
             rem = total_p - p_idx
             
-            # Smart pattern trigger to thin front density dynamically
             is_f1 = row_idx == 1 or row_idx == 2
             is_f2 = row_idx == 4 or row_idx == 5
             is_f3 = row_idx == 7 or row_idx == 8
             is_f4 = row_idx == 10
             
             if is_f1 or is_f2 or is_f3 or is_f4:
-                # Force single center-line placement to move CoG back
                 p1 = all_p[p_idx]
                 layout.append({
                     'type': 'SINGLE_CENTER', 'p': [p1],
@@ -88,7 +95,6 @@ class WebTruckOptimizer:
                 })
                 p_idx += 1
             else:
-                # Try placing a double row to maintain compactness
                 if rem >= 2:
                     p1 = all_p[p_idx]
                     p2 = all_p[p_idx+1]
@@ -138,8 +144,9 @@ class WebTruckOptimizer:
             t3_cargo_wt += row_to_tridem * 0.33
             c_dist += r['len']
             
-        drive_cargo = kp_cargo_wt * 0.81
-        steer_cargo = kp_cargo_wt * 0.19
+        # Realistic tractor core distribution (15% steer / 85% drive)
+        drive_cargo = kp_cargo_wt * 0.85
+        steer_cargo = kp_cargo_wt * 0.15
         
         return {
             'steer': round(self.empty_steer + steer_cargo),
@@ -202,9 +209,18 @@ with c1:
         st.session_state.manifest = ed_df.to_dict('records')
 
 if len(st.session_state.manifest) > 0:
-    layout = engine.generate_blueprint(st.session_state.manifest)
+    # --- AUTOMATED LOAD BALANCING ITERATOR LOOP ---
+    offset = 0
+    max_loops = 6
+    layout = engine.generate_blueprint(st.session_state.manifest, offset)
     res = engine.analyze(layout)
     
+    # Loop continuously shifts weight back until Drive Axle is safe
+    while res['drive'] > engine.max_drive and offset < max_loops:
+        offset += 1
+        layout = engine.generate_blueprint(st.session_state.manifest, offset)
+        res = engine.analyze(layout)
+        
     with c2:
         st.subheader("5-Axle Scale Weight Report")
         if res['gross_total'] > engine.max_total_weight:
@@ -240,24 +256,27 @@ if len(st.session_state.manifest) > 0:
         accumulated_len += r['len']
         if r['type'] == 'DOUBLE':
             if len(r['p']) == 2:
-                p1, p2 = r['p'], r['p']
-                lc = f"{p1['name']} ({p1['wt']} kg)"
-                rc = f"{p2['name']} ({p2['wt']} kg)"
+                p1_item = r['p'][0]
+                p2_item = r['p'][1]
+                lc = f"{p1_item['name']} ({p1_item['wt']} kg)"
+                rc = f"{p2_item['name']} ({p2_item['wt']} kg)"
             else:
-                p1 = r['p']
-                lc = f"{p1['name']} ({p1['wt']} kg)"
+                p1_item = r['p'][0]
+                lc = f"{p1_item['name']} ({p1_item['wt']} kg)"
                 rc = "[ BLOCKING REQUIRED ]"
+        elif r['type'] == 'EMPTY_ROW':
+            lc = "[ EMPTY SPACE - DRIVE AXLE PROTECTION BUFFER ]"
+            rc = "[ EMPTY SPACE - DRIVE AXLE PROTECTION BUFFER ]"
         else:
-            p1 = r['p']
-            lc = f"CENTER: {p1['name']} ({p1['wt']} kg)"
-            rc = f"CENTER: {p1['name']} ({p1['wt']} kg)"
+            p1_item = r['p'][0]
+            lc = f"CENTER: {p1_item['name']} ({p1_item['wt']} kg)"
+            rc = f"CENTER: {p1_item['name']} ({p1_item['wt']} kg)"
             
         grid_rows.append({
             "Trailer Position": f"Row {idx:02d} ({accumulated_len:.1f} M Mark)",
             "Left Column Side": lc,
             "Right Column Side": rc,
-            "Row Depth": f"{r['len']*100:.0f} cm"
-        })
-        
-    grid_df = pd.DataFrame(grid_rows)
-    st.dataframe(grid_df, hide_index=True, use_container_width=True)
+"Row Depth": f"{r['len']*100:.0f} cm"
+})
+grid_df = pd.DataFrame(grid_rows
+st.dataframe(grid_df, hide_index=True, use_container_width=True)
