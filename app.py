@@ -104,18 +104,17 @@ if "cargo" not in st.session_state:
 
         columns=[
 
-            "Description",
-            "Qty",
-            "Width",
-            "Length",
-            "Height",
-            "Weight",
-            "Rotate"
+            "Goods Description",
+            "Pallet Quantity",
+            "Width (cm)",
+            "Length (cm)",
+            "Height (cm)",
+            "Weight (kg)",
+            "Allow Rotation"
 
         ]
 
     )
-
 
 
 edited = st.data_editor(
@@ -124,7 +123,62 @@ edited = st.data_editor(
 
     num_rows="dynamic",
 
-    use_container_width=True
+    use_container_width=True,
+
+    hide_index=True,
+
+    key="cargo_editor",
+
+    column_config={
+
+        "Goods Description":
+            st.column_config.TextColumn(
+                "Goods Description"
+            ),
+
+
+        "Pallet Quantity":
+            st.column_config.NumberColumn(
+                "Pallet Quantity",
+                min_value=1,
+                step=1
+            ),
+
+
+        "Width (cm)":
+            st.column_config.NumberColumn(
+                "Width (cm)",
+                min_value=1
+            ),
+
+
+        "Length (cm)":
+            st.column_config.NumberColumn(
+                "Length (cm)",
+                min_value=1
+            ),
+
+
+        "Height (cm)":
+            st.column_config.NumberColumn(
+                "Height (cm)",
+                min_value=1
+            ),
+
+
+        "Weight (kg)":
+            st.column_config.NumberColumn(
+                "Weight (kg)",
+                min_value=1
+            ),
+
+
+        "Allow Rotation":
+            st.column_config.CheckboxColumn(
+                "Allow Rotation"
+            )
+
+    }
 
 )
 
