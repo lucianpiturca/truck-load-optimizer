@@ -1,69 +1,100 @@
 def calculate_axle_loads(truck, pallets):
     """
-    Calculates approximate axle loads.
+    European 6x2 tractor + 3 axle semi-trailer model.
 
-    Uses:
-    - empty axle weights from truck.py
-    - pallet position inside trailer
-    - trailer length distribution
+    Assumptions:
+    Tractor:
+        Axle 1 -> steering axle
+        Axle 2 -> drive axle
 
-    x position:
-        0 = front of trailer
-        trailer_length = rear doors
+    Trailer:
+        Axle 3-5 -> tri-axle bogie
+
+
+    Geometry assumptions:
+
+    Tractor:
+        Axle1 to Axle2 = 3.6 m
+        Axle2 to Kingpin = 0.9 m
+
+
+    Trailer:
+        Kingpin to axle group center = 7.5 m
+
     """
 
 
-    # Start with empty truck
 
-    axle_loads = [
+    # -----------------------------
+    # Empty vehicle weights
+    # -----------------------------
 
-        float(x)
+    axle1 = truck.empty_axles[0]
 
-        for x in truck.empty_axles
+    axle2 = truck.empty_axles[1]
 
-    ]
+    axle3 = truck.empty_axles[2]
 
+    axle4 = truck.empty_axles[3]
 
-    if not pallets:
-        return axle_loads
-
-
-
-    trailer_length = truck.trailer_length
+    axle5 = truck.empty_axles[4]
 
 
 
-    total_cargo = sum(
+    # -----------------------------
+    # Accumulated loads
+    # -----------------------------
 
-        pallet["weight"]
+    kingpin_load = 0
 
-        for pallet in pallets
+    trailer_load = 0
 
-    )
 
 
     for pallet in pallets:
 
 
-        weight = pallet["weight"]
+        weight = pallet.get(
+            "weight",
+            0
+        )
 
 
-        # pallet center position
+        # pallet centre position
+        pallet_center = (
 
-        center = (
-
-            pallet["x"]
+            pallet.get("x", 0)
 
             +
 
-            pallet["length"] / 2
+            pallet.get("length", 0) / 2
 
         )
 
 
-        position_ratio = (
 
-            center
+        # metres from trailer front
+
+        distance_from_front = pallet_center
+
+
+
+        #
+        # Semi trailer:
+        #
+        # Front of trailer near kingpin
+        # Rear near axle group
+        #
+
+
+        trailer_length = 13.6
+
+
+        # simplified load split
+
+        trailer_share = (
+
+            distance_from_front
 
             /
 
@@ -72,101 +103,97 @@ def calculate_axle_loads(truck, pallets):
         )
 
 
-        if position_ratio < 0:
+        trailer_share = max(
 
-            position_ratio = 0
+            0,
 
+            min(
 
-        if position_ratio > 1:
+                1,
 
-            position_ratio = 1
+                trailer_share
 
-
-
-        #
-        # Distribution model:
-        #
-        # Front of trailer affects tractor axles more
-        # Rear affects trailer axles more
-        #
-
-
-        tractor_share = (
-
-            1 - position_ratio
+            )
 
         )
 
 
-        trailer_share = position_ratio
-
-
-
-        tractor_load = (
+        kingpin_part = (
 
             weight
 
             *
 
-            tractor_share
-
-        )
-
-
-        trailer_load = (
-
-            weight
+            (1 - trailer_share)
 
             *
 
-            trailer_share
+            0.45
 
         )
 
 
+        bogie_part = (
 
-        # Split tractor load
+            weight
 
-        axle_loads[0] += (
+            -
 
-            tractor_load * 0.45
-
-        )
-
-
-        axle_loads[1] += (
-
-            tractor_load * 0.55
+            kingpin_part
 
         )
 
 
+        kingpin_load += kingpin_part
 
-        # Split trailer bogie
-
-        axle_loads[2] += (
-
-            trailer_load * 0.34
-
-        )
-
-
-        axle_loads[3] += (
-
-            trailer_load * 0.33
-
-        )
-
-
-        axle_loads[4] += (
-
-            trailer_load * 0.33
-
-        )
+        trailer_load += bogie_part
 
 
 
-    return axle_loads
+    # -----------------------------
+    # Tractor load distribution
+    # -----------------------------
+
+    #
+    # Kingpin sits behind drive axle.
+    #
+    # Most kingpin load goes to drive axle.
+    # Small part transfers to steering axle.
+    #
+
+
+    axle1 += kingpin_load * 0.15
+
+    axle2 += kingpin_load * 0.85
+
+
+
+    # -----------------------------
+    # Trailer axle distribution
+    # -----------------------------
+
+
+    axle3 += trailer_load / 3
+
+    axle4 += trailer_load / 3
+
+    axle5 += trailer_load / 3
+
+
+
+    return [
+
+        axle1,
+
+        axle2,
+
+        axle3,
+
+        axle4,
+
+        axle5
+
+    ]
 
 
 
@@ -174,31 +201,54 @@ def calculate_axle_loads(truck, pallets):
 
 def check_axles(truck, axle_loads):
 
-    """
-    Returns legal status for each axle.
-    """
+
+    limits = [
+
+        10000,
+
+        11500,
+
+        8000,
+
+        8000,
+
+        8000
+
+    ]
 
 
     results = []
 
 
-    for load, limit in zip(
+    for i, weight in enumerate(axle_loads):
 
-        axle_loads,
 
-        truck.axle_limits
+        results.append(
 
-    ):
+            {
 
-        results.append({
+                "axle":
 
-            "weight": load,
+                    i + 1,
 
-            "limit": limit,
 
-            "legal": load <= limit
+                "weight":
 
-        })
+                    weight,
+
+
+                "limit":
+
+                    limits[i],
+
+
+                "legal":
+
+                    weight <= limits[i]
+
+            }
+
+        )
 
 
     return results
@@ -209,4 +259,9 @@ def check_axles(truck, axle_loads):
 
 def calculate_gross_weight(axle_loads):
 
-    return sum(axle_loads)
+
+    return sum(
+
+        axle_loads
+
+    )
