@@ -1,267 +1,209 @@
 import streamlit as st
 import pandas as pd
 
-# --- INITIALIZATION ---
 st.set_page_config(
     page_title="Optimizer", 
     layout="wide"
 )
 st.title("Truck Load Optimizer")
 
-# --- ENGINE ---
 class WebTruckOptimizer:
-    def __init__(self, truck_type):
-        self.trailer_length = 13.6
-        self.trailer_width = 2.45  
-        self.kingpin_to_front = 1.6
-        self.wheelbase = 7.5
-        
+    def __init__(self, t_type):
         c_side = "Curtainsider"
-        if c_side in truck_type:
+        if c_side in t_type:
+            self.trailer_length = 13.6
+            self.trailer_width = 2.48  
             self.empty_steer = 4800
             self.empty_drive = 2200
             self.empty_tridem = 7000
             self.max_cargo_wt = 24000
-        else:  
+        else:
+            self.trailer_length = 13.4
+            self.trailer_width = 2.45  
             self.empty_steer = 4900
             self.empty_drive = 2400
             self.empty_tridem = 7900  
             self.max_cargo_wt = 22000
 
+        self.kingpin_to_front = 1.6
+        self.wheelbase = 7.5
         self.max_drive = 11500  
         self.max_tridem = 24000  
 
     def generate_blueprint(self, mft):
-        all_pallets = []
+        all_p = []
         for p in mft:
             for _ in range(int(p['qty'])):
-                orig_w = p['width']
-                orig_l = p['len']
-                
+                ow = p['width']
+                ol = p['len']
                 if p.get('auto_rotate', True):
-                    max_w = 245
-                    if orig_l > orig_w and orig_l <= max_w:
-                        fit_w = orig_l
-                        fit_l = orig_w
+                    mw = self.trailer_width * 100
+                    if ol > ow and ol <= mw:
+                        fw, fl = ol, ow
                     else:
-                        fit_w = orig_w
-                        fit_l = orig_l
+                        fw, fl = ow, ol
                 else:
-                    fit_w = orig_w
-                    fit_l = orig_l
-
-                all_pallets.append({
-                    'len': fit_l / 100.0, 
-                    'width': fit_w, 
+                    fw, fl = ow, ol
+                all_p.append({
+                    'len': fl / 100.0, 
+                    'width': fw / 100.0, 
                     'wt': p['wt'], 
                     'name': p['name']
                 })
-        
-        all_pallets.sort(
-            key=lambda x: x['wt'], 
-            reverse=True
-        )
-        
+        all_p.sort(key=lambda x: x['wt'], reverse=True)
         layout = []
-        p_idx = 0
-        total_p = len(all_pallets)
-        row_idx = 0
-        
+        p_idx, row_idx = 0, 0
+        total_p = len(all_p)
         while p_idx < total_p:
-            remaining = total_p - p_idx
-            
+            rem = total_p - p_idx
             is_d1 = row_idx == 0 or row_idx == 3
             is_d2 = row_idx > 3 and row_idx % 2 == 1
-            if is_d1 or is_d2 or remaining == 2:
-                if remaining >= 2:
-                    p1 = all_pallets[p_idx]
-                    p2 = all_pallets[p_idx+1]
-                    max_w = 245
-                    if (p1['width'] + p2['width']) <= max_w:
+            if is_d1 or is_d2 or rem == 2:
+                if rem >= 2:
+                    p1 = all_p[p_idx]
+                    p2 = all_p[p_idx+1]
+                    if (p1['width'] + p2['width']) <= self.trailer_width:
                         layout.append({
-                            'type': 'DOUBLE', 
-                            'p': [p1, p2], 
+                            'type': 'DOUBLE', 'p': [p1, p2], 
                             'len': max(p1['len'], p2['len']), 
                             'wt': p1['wt'] + p2['wt']
                         })
                         p_idx += 2
                     else:
                         layout.append({
-                            'type': 'SINGLE_CENTER', 
-                            'p': [p1], 
-                            'len': p1['len'], 
-                            'wt': p1['wt'],
-                            'note': "Over width!"
+                            'type': 'SINGLE_CENTER', 'p': [p1], 
+                            'len': p1['len'], 'wt': p1['wt']
                         })
                         p_idx += 1
                 else:
-                    p1 = all_pallets[p_idx]
+                    p1 = all_p[p_idx]
                     layout.append({
-                        'type': 'DOUBLE', 
-                        'p': [p1], 
-                        'len': p1['len'], 
-                        'wt': p1['wt']
+                        'type': 'DOUBLE', 'p': [p1], 
+                        'len': p1['len'], 'wt': p1['wt']
                     })
                     p_idx += 1
             else:
-                p1 = all_pallets[p_idx]
+                p1 = all_p[p_idx]
                 layout.append({
-                    'type': 'SINGLE_CENTER', 
-                    'p': [p1], 
-                    'len': p1['len'], 
-                    'wt': p1['wt']
+                    'type': 'SINGLE_CENTER', 'p': [p1], 
+                    'len': p1['len'], 'wt': p1['wt']
                 })
                 p_idx += 1
             row_idx += 1
-            
         return layout
 
     def analyze(self, layout):
-        total_wt = 0
-        weighted_dist = 0
-        curr_dist = 0.0
-        for row in layout:
-            row_center = curr_dist + (row['len'] / 2.0)
-            weighted_dist += row['wt'] * row_center
-            total_wt += row['wt']
-            curr_dist += row['len']
-            
-        if total_wt > 0:
-            cog = weighted_dist / total_wt
-        else:
-            cog = 0
-        cargo_dist_kp = cog - self.kingpin_to_front
-        wt_tridem = (total_wt * cargo_dist_kp) / self.wheelbase
-        wt_kp = total_wt - wt_tridem
-        
+        tot_w, w_dist, c_dist = 0, 0, 0.0
+        for r in layout:
+            r_c = c_dist + (r['len'] / 2.0)
+            w_dist += r['wt'] * r_c
+            tot_w += r['wt']
+            c_dist += r['len']
+        cog = w_dist / tot_w if tot_w > 0 else 0
+        dist_kp = cog - self.kingpin_to_front
+        w_tri = (tot_w * dist_kp) / self.wheelbase
+        w_kp = tot_w - w_tri
         return {
-            'steer': round(self.empty_steer + (wt_kp * 0.25)),
-            'drive': round(self.empty_drive + (wt_kp * 0.75)),
-            'tridem': round(self.empty_tridem + wt_tridem),
-            'cargo_wt': total_wt,
-            'cargo_len': round(curr_dist, 2),
-            'rear_gap': round(self.trailer_length - curr_dist, 2),
-            'cog': round(cog, 2)
+            'steer': round(self.empty_steer + (w_kp * 0.25)),
+            'drive': round(self.empty_drive + (w_kp * 0.75)),
+            'tridem': round(self.empty_tridem + w_tri),
+            'cargo_wt': tot_w, 'cargo_len': round(c_dist, 2),
+            'rear_gap': round(self.trailer_length - c_dist, 2), 'cog': round(cog, 2)
         }
 
-# --- CONTROL PANEL ---
 st.sidebar.header("Step 1")
 t_opts = ["Curtainsider (24t)", "Frigo (22t)"]
-truck_selection = st.sidebar.selectbox("Truck", t_opts)
-engine = WebTruckOptimizer(truck_selection)
+t_sel = st.sidebar.selectbox("Truck", t_opts)
+engine = WebTruckOptimizer(t_sel)
 
 st.sidebar.header("Step 2")
 if 'manifest' not in st.session_state:
     st.session_state.manifest = [{
-        'name': 'Pallets', 'qty': 17, 
-        'width': 100, 'len': 120, 'wt': 1300, 
-        'auto_rotate': True
+        'name': 'Pallets', 'qty': 17, 'width': 100, 'len': 120, 'wt': 1300, 'auto_rotate': True
     }]
 
-with st.sidebar.form("add_pallet_form"):
+with st.sidebar.form("add_p_form"):
     p_name = st.text_input("Name", "Batch")
     p_qty = st.number_input("Qty", min_value=1, value=1)
     p_width = st.number_input("Width (cm)", min_value=10, value=100)
     p_len = st.number_input("Length (cm)", min_value=10, value=120)
     p_wt = st.number_input("Weight (kg)", min_value=50, value=1000)
-    p_rotate = st.checkbox("Auto Rotate", value=True)
-    submitted = st.form_submit_button("Add")
-    if submitted:
+    p_rot = st.checkbox("Auto Rotate", value=True)
+    if st.form_submit_button("Add"):
         st.session_state.manifest.append({
-            'name': p_name, 'qty': p_qty, 'width': p_width, 
-            'len': p_len, 'wt': p_wt, 'auto_rotate': p_rotate
+            'name': p_name, 'qty': p_qty, 'width': p_width, 'len': p_len, 'wt': p_wt, 'auto_rotate': p_rot
         })
 
 if st.sidebar.button("Clear"):
     st.session_state.manifest = []
     st.rerun()
 
-# --- MAIN DISPLAY ---
-col1, col2 = st.columns(2)
-
-with col1:
+c1, c2 = st.columns(2)
+with c1:
     st.subheader("Manifest")
     if len(st.session_state.manifest) == 0:
         st.info("Empty.")
     else:
-        df_base = pd.DataFrame(st.session_state.manifest)
-        edited_df = st.data_editor(
-            df_base,
-            column_config={
-                "name": "Desc", "qty": "Qty",
-                "width": "W", "len": "L", "wt": "Wt",
+        df = pd.DataFrame(st.session_state.manifest)
+        ed_df = st.data_editor(
+            df, column_config={
+                "name": "Desc", "qty": "Qty", "width": "W", "len": "L", "wt": "Wt",
                 "auto_rotate": st.column_config.CheckboxColumn("Rotate")
-            },
-            hide_index=True,
-            use_container_width=True
+            }, hide_index=True, use_container_width=True
         )
-        st.session_state.manifest = edited_df.to_dict('records')
+        st.session_state.manifest = ed_df.to_dict('records')
 
 if len(st.session_state.manifest) > 0:
     layout = engine.generate_blueprint(st.session_state.manifest)
     res = engine.analyze(layout)
-    
-    with col2:
+    with c2:
         st.subheader("Weights")
         st.metric("Total", f"{res['cargo_wt']:,} kg")
         st.metric("Drive", f"{res['drive']:,} kg")
         st.metric("Trailer", f"{res['tridem']:,} kg")
 
-    st.subheader("Trailer Diagram Map")
+    st.subheader("Trailer Map")
+    sy, sx = 60, 160
+    cw = int(engine.trailer_width * sx)
+    ch = int(engine.trailer_length * sy)
     
-    # Styles
-    st.markdown("""
+    st.markdown(f"""
         <style>
-        .t-box { border: 2px solid #333; background: #fafafa; padding: 5px; }
-        .m-row { border-bottom: 1px dashed #ccc; min-height: 40px; display: flex; align-items: center; position: relative; }
-        .m-lbl { position: absolute; left: 5px; color: #888; font-size: 11px; font-weight: bold; }
-        .p-cnt { display: flex; justify-content: space-around; width: 100%; padding-left: 50px; }
-        .p-blk { background: #1E3A8A; color: white; border-radius: 4px; text-align: center; font-size: 11px; min-width: 100px; padding: 2px; }
-        .p-sng { background: #0284C7; margin: 0 auto; }
-        .e-txt { color: #aaa; font-size: 11px; padding-left: 50px; }
+        .t-bed {{ position: relative; width: {cw}px; height: {ch}px; border: 4px solid #111; background: #fff; margin: 0 auto; }}
+        .g-ln {{ position: absolute; left: 0; width: 100%; border-top: 1px dashed #ccc; }}
+        .g-lb {{ position: absolute; left: -30px; color: #555; font-size: 10px; font-weight: bold; }}
+        .p-un {{ position: absolute; background: #1d4ed8; color: white; border: 1px solid #000; border-radius: 2px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 9px; font-weight: bold; overflow: hidden; }}
+        .p-sng {{ background: #0284c7; }}
         </style>
     """, unsafe_allow_html=True)
 
-    h_str = "<div class='t-box'>"
-    h_str += "<div style='text-align:center;font-size:12px;font-weight:bold;'>FRONT</div>"
-    
-    c_idx = 0
-    t_rows = len(layout)
-    
-    for m in range(1, 15):
-        h_str += "<div class='m-row'>"
-        h_str += f"<span class='m-lbl'>{m}M</span>"
-        
-        if c_idx < t_rows:
-            row = layout[c_idx]
-            h_str += "<div class='p-cnt'>"
-            
-            if row['type'] == 'DOUBLE':
-                if len(row['p']) == 2:
-                    p1_n = row['p'][0]['name']
-                    p1_w = row['p'][0]['wt']
-                    p2_n = row['p'][1]['name']
-                    p2_w = row['p'][1]['wt']
-                    h_str += f"<div class='p-blk'>{p1_n}<br>{p1_w}kg</div>"
-                    h_str += f"<div class='p-blk'>{p2_n}<br>{p2_w}kg</div>"
-                else:
-                    p1_n = row['p'][0]['name']
-                    p1_w = row['p'][0]['wt']
-                    h_str += f"<div class='p-blk'>{p1_n}<br>{p1_w}kg</div>"
-                    h_str += "<div class='p-blk' style='background:#ccc;'>BLOCK</div>"
+    h = "<div>FRONT</div>"
+    h += f"<div class='t-bed'>"
+    for m in range(1, int(engine.trailer_length) + 1):
+        tp = int(m * sy)
+        h += f"<div class='g-ln' style='top:{tp}px;'><span class='g-lb'>{m}M</span></div>"
+
+    cy = 0.0
+    for r in layout:
+        rl = r['len']
+        bh = int(rl * sy)
+        pt = int(cy * sy)
+        if r['type'] == 'DOUBLE':
+            if len(r['p']) == 2:
+                p1, p2 = r['p'][0], r['p'][1]
+                w1 = int(p1['width'] * sx)
+                w2 = int(p2['width'] * sx)
+                h += f"<div class='p-un' style='left:0;top:{pt}px;width:{w1}px;height:{bh}px;'>{p1['name']}<br>{p1['wt']}k</div>"
+                h += f"<div class='p-un' style='right:0;top:{pt}px;width:{w2}px;height:{bh}px;'>{p2['name']}<br>{p2['wt']}k</div>"
             else:
-                p1_n = row['p'][0]['name']
-                p1_w = row['p'][0]['wt']
-                h_str += f"<div class='p-blk p-sng'>{p1_n}<br>{p1_w}kg</div>"
-                
-            h_str += "</div>"
-            c_idx += 1
+                p1 = r['p'][0]
+                w1 = int(p1['width'] * sx)
+                h += f"<div class='p-un' style='left:0;top:{pt}px;width:{w1}px;height:{bh}px;'>{p1['name']}<br>{p1['wt']}k</div>"
         else:
-            h_str += "<span class='e-txt'>Empty Zone</span>"
-            
-        h_str += "</div>"
-        
-    h_str += "<div style='text-align:center;font-size:12px;font-weight:bold;'>REAR</div>"
-    h_str += "</div>"
-    
-    st.markdown(h_str, unsafe_allow_html=True)
+            p1 = r['p'][0]
+            w1 = int(p1['width'] * sx)
+            pl = int((cw - w1) / 2)
+            h += f"<div class='p-un p-sng' style='left:{pl}px;top:{pt}px;width:{w1}px;height:{bh}px;'>{p1['name']}<br>{p1['wt']}k</div>"
+        cy += rl
+    h += "</div><div>REAR</div>"
+    st.markdown(h, unsafe_allow_html=True)
