@@ -325,6 +325,9 @@ def optimize_load(truck, manifest):
 
 
 
+    print("DEBUG loaded pallets:", len(loaded))
+    print("DEBUG rejected pallets:", len(rejected))
+
     return loaded, rejected
 
 

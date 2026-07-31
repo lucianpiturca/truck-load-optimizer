@@ -316,7 +316,7 @@ if st.button(
 # Display results
 # ---------------------------------
 
-if "pallets" in st.session_state:
+if "pallets" in st.session_state and st.session_state.pallets:
 
 
     pallets = st.session_state.pallets
