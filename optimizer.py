@@ -2,22 +2,14 @@ from packing import pack_cargo
 from axles import calculate_axle_loads, check_axles
 
 
+
 def calculate_score(pallets, axle_results, truck):
-
-    """
-    Higher score = better loading plan.
-
-    Priorities:
-    1. Legal axle loads
-    2. Taller pallets forward
-    3. Better trailer usage
-    """
 
     score = 0
 
 
     # ---------------------------------
-    # Penalize overweight axles heavily
+    # Axle legality
     # ---------------------------------
 
     for axle in axle_results:
@@ -25,7 +17,6 @@ def calculate_score(pallets, axle_results, truck):
         if not axle["legal"]:
 
             score -= 100000
-
 
         else:
 
@@ -49,7 +40,8 @@ def calculate_score(pallets, axle_results, truck):
 
     for pallet in pallets:
 
-        front_bonus = (
+
+        distance_from_front = (
 
             truck.trailer_length
 
@@ -66,30 +58,35 @@ def calculate_score(pallets, axle_results, truck):
 
             *
 
-            front_bonus
+            distance_from_front
 
             *
 
-            0.1
+            0.05
 
         )
 
 
+
     # ---------------------------------
-    # Prefer shorter used length
+    # Prefer compact loading
     # ---------------------------------
 
     if pallets:
 
-        used = max(
+        used_length = max(
 
             p["x"] + p["length"]
 
             for p in pallets
 
+            if p["length"] > 0
+
         )
 
-        score -= used * 10
+
+        score -= used_length * 10
+
 
 
     return score
@@ -100,66 +97,58 @@ def calculate_score(pallets, axle_results, truck):
 
 def optimize_load(truck, manifest):
 
-    """
-    First optimization version.
-
-    Tests different cargo orders.
-
-    Priority:
-    1. Height
-    2. Weight
-    3. Space
-    """
-
 
     candidates = []
 
 
-    # ---------------------------------
-    # Normal order
-    # ---------------------------------
 
-    candidates.append(manifest)
+    # Original order
+
+    candidates.append(
+
+        manifest.copy()
+
+    )
 
 
 
-    # ---------------------------------
     # Tallest first
-    # ---------------------------------
 
-    candidates.append(
+    if "Height (cm)" in manifest.columns:
 
-        manifest.sort_values(
+        candidates.append(
 
-            by="Height",
+            manifest.sort_values(
 
-            ascending=False
+                by="Height (cm)",
+
+                ascending=False
+
+            ).copy()
 
         )
 
-    )
 
 
-
-    # ---------------------------------
     # Heaviest first
-    # ---------------------------------
 
-    candidates.append(
+    if "Weight (kg)" in manifest.columns:
 
-        manifest.sort_values(
+        candidates.append(
 
-            by="Weight",
+            manifest.sort_values(
 
-            ascending=False
+                by="Weight (kg)",
+
+                ascending=False
+
+            ).copy()
 
         )
 
-    )
 
 
-
-    best = None
+    best_layout = None
 
     best_score = -999999999
 
@@ -209,10 +198,11 @@ def optimize_load(truck, manifest):
 
         if score > best_score:
 
+
             best_score = score
 
-            best = pallets
+            best_layout = pallets
 
 
 
-    return best
+    return best_layout
