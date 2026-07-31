@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 
+from drawing import draw_trailer
 from truck import TRUCKS
 
 st.set_page_config(
@@ -58,7 +59,11 @@ st.write("")
 
 st.subheader("Trailer Layout")
 
-st.info("Trailer drawing will appear here in Part 2.")
+sample = []
+
+fig = draw_trailer(truck, sample)
+
+st.pyplot(fig, use_container_width=True)
 
 st.write("")
 
