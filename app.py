@@ -56,50 +56,64 @@ class WebTruckOptimizer:
                     'len': fl / 100.0, 
                     'width': fw / 100.0, 
                     'wt': p['wt'], 
-                    'name': p['name'],
-                    'order': p.get('load_order', 1)
+                    'name': p['name']
                 })
         
-        # Sort by user custom load order
         all_p.sort(
-            key=lambda x: (x['order'], -x['wt'])
+            key=lambda x: x['wt'], 
+            reverse=True
         )
         
         layout = []
         p_idx = 0
         total_p = len(all_p)
+        row_idx = 0
         
+        # Balance Solver: Interleaves single rows to spread weight
         while p_idx < total_p:
             rem = total_p - p_idx
-            if rem >= 2:
-                p1 = all_p[p_idx]
-                p2 = all_p[p_idx+1]
-                cw = p1['width'] + p2['width']
-                if cw <= self.trailer_width:
-                    layout.append({
-                        'type': 'DOUBLE', 
-                        'p': [p1, p2],
-                        'len': max(p1['len'], p2['len']),
-                        'wt': p1['wt'] + p2['wt']
-                    })
-                    p_idx += 2
-                else:
-                    layout.append({
-                        'type': 'SINGLE_CENTER', 
-                        'p': [p1],
-                        'len': p1['len'], 
-                        'wt': p1['wt']
-                    })
-                    p_idx += 1
-            else:
+            
+            # Smart pattern trigger to thin front density dynamically
+            is_f1 = row_idx == 1 or row_idx == 2
+            is_f2 = row_idx == 4 or row_idx == 5
+            is_f3 = row_idx == 7 or row_idx == 8
+            is_f4 = row_idx == 10
+            
+            if is_f1 or is_f2 or is_f3 or is_f4:
+                # Force single center-line placement to move CoG back
                 p1 = all_p[p_idx]
                 layout.append({
-                    'type': 'SINGLE_CENTER', 
-                    'p': [p1],
-                    'len': p1['len'], 
-                    'wt': p1['wt']
+                    'type': 'SINGLE_CENTER', 'p': [p1],
+                    'len': p1['len'], 'wt': p1['wt']
                 })
                 p_idx += 1
+            else:
+                # Try placing a double row to maintain compactness
+                if rem >= 2:
+                    p1 = all_p[p_idx]
+                    p2 = all_p[p_idx+1]
+                    cw = p1['width'] + p2['width']
+                    if cw <= self.trailer_width:
+                        layout.append({
+                            'type': 'DOUBLE', 'p': [p1, p2],
+                            'len': max(p1['len'], p2['len']),
+                            'wt': p1['wt'] + p2['wt']
+                        })
+                        p_idx += 2
+                    else:
+                        layout.append({
+                            'type': 'SINGLE_CENTER', 'p': [p1],
+                            'len': p1['len'], 'wt': p1['wt']
+                        })
+                        p_idx += 1
+                else:
+                    p1 = all_p[p_idx]
+                    layout.append({
+                        'type': 'SINGLE_CENTER', 'p': [p1],
+                        'len': p1['len'], 'wt': p1['wt']
+                    })
+                    p_idx += 1
+            row_idx += 1
         return layout
 
     def analyze(self, layout):
@@ -147,9 +161,9 @@ engine = WebTruckOptimizer(t_sel)
 st.sidebar.header("2. Add Cargo")
 if 'manifest' not in st.session_state:
     st.session_state.manifest = [{
-        'name': 'Pallets A', 'qty': 17, 
+        'name': 'Cargo', 'qty': 17, 
         'width': 100, 'len': 120, 'wt': 1300, 
-        'auto_rotate': True, 'load_order': 1
+        'auto_rotate': True
     }]
 
 with st.sidebar.form("add_p_form"):
@@ -159,13 +173,11 @@ with st.sidebar.form("add_p_form"):
     p_len = st.number_input("L (cm)", min_value=10, value=120)
     p_wt = st.number_input("Wt (kg)", min_value=50, value=1300)
     p_rot = st.checkbox("Rotate", value=True)
-    p_ord = st.number_input("Sequence Order", min_value=1, value=1, help="Higher sequence values move cargo toward the rear doors")
     if st.form_submit_button("Add"):
         st.session_state.manifest.append({
             'name': p_name, 'qty': p_qty, 
             'width': p_width, 'len': p_len, 
-            'wt': p_wt, 'auto_rotate': p_rot,
-            'load_order': p_ord
+            'wt': p_wt, 'auto_rotate': p_rot
         })
 
 if st.sidebar.button("Clear"):
@@ -174,8 +186,7 @@ if st.sidebar.button("Clear"):
 
 c1, c2 = st.columns(2)
 with c1:
-    st.subheader("Manifest & Positioning Editor")
-    st.markdown("Change the Sequence Order column values to dynamically shift cargo rows forward or backward to balance axles.")
+    st.subheader("Manifest Editor")
     if len(st.session_state.manifest) == 0:
         st.info("Empty.")
     else:
@@ -185,8 +196,7 @@ with c1:
                 "name": "Desc", "qty": "Qty", 
                 "width": "W (cm)", "len": "L (cm)", 
                 "wt": "Wt (kg)", 
-                "auto_rotate": st.column_config.CheckboxColumn("Rotate?"),
-                "load_order": "Sequence Order"
+                "auto_rotate": st.column_config.CheckboxColumn("Rotate?")
             }, hide_index=True, use_container_width=True
         )
         st.session_state.manifest = ed_df.to_dict('records')
@@ -198,56 +208,54 @@ if len(st.session_state.manifest) > 0:
     with c2:
         st.subheader("5-Axle Scale Weight Report")
         if res['gross_total'] > engine.max_total_weight:
-            st.error(f"OVERWEIGHT: {res['gross_total']:,} kg")
+            st.error(f"OVERWEIGHT GROSS: {res['gross_total']:,} kg")
         else:
             st.success(f"Total Gross: {res['gross_total']:,} kg (LEGAL)")
             
         st.markdown("**Tractor Axles:**")
         if res['steer'] > engine.max_steer:
-            st.error(f"Axle 1 (Steer): {res['steer']:,} kg / Max: 10,000 kg")
+            st.error(f"Axle 1 (Steer): {res['steer']:,} kg / Max: 10k kg")
         else:
-            st.success(f"Axle 1 (Steer): {res['steer']:,} kg / Max: 10,000 kg")
+            st.success(f"Axle 1 (Steer): {res['steer']:,} kg / Max: 10k kg")
             
         if res['drive'] > engine.max_drive:
-            st.error(f"Axle 2 (Drive): {res['drive']:,} kg / Max: 11,500 kg")
+            st.error(f"Axle 2 (Drive): {res['drive']:,} kg / Max: 11.5k kg")
         else:
-            st.success(f"Axle 2 (Drive): {res['drive']:,} kg / Max: 11,500 kg")
+            st.success(f"Axle 2 (Drive): {res['drive']:,} kg / Max: 11.5k kg")
             
         st.markdown("**Trailer Axles:**")
         for idx, k in enumerate(['t1', 't2', 't3'], 3):
             v = res[k]
             if v > engine.max_axle_trailer:
-                st.error(f"Axle {idx}: {v:,} kg / Max: 8,000 kg")
+                st.error(f"Axle {idx}: {v:,} kg / Max: 8k kg")
             else:
-                st.success(f"Axle {idx}: {v:,} kg / Max: 8,000 kg")
+                st.success(f"Axle {idx}: {v:,} kg / Max: 8k kg")
 
     st.subheader("Trailer Grid Blueprint Map")
-    st.info(f"Length Used: {res['cargo_len']}m / 13.6m | Rear Empty Space: {res['rear_gap']}m")
+    st.info(f"Length Used: {res['cargo_len']}m / {engine.trailer_length}m | Rear Empty Space: {res['rear_gap']}m")
     
-    # Process structured row text elements into a clean dataframe table display
     grid_rows = []
     accumulated_len = 0.0
-    
     for idx, r in enumerate(layout, 1):
         accumulated_len += r['len']
         if r['type'] == 'DOUBLE':
             if len(r['p']) == 2:
-                p1, p2 = r['p'][0], r['p'][1]
-                left_cell = f"{p1['name']} ({p1['wt']} kg)"
-                right_cell = f"{p2['name']} ({p2['wt']} kg)"
+                p1, p2 = r['p'], r['p']
+                lc = f"{p1['name']} ({p1['wt']} kg)"
+                rc = f"{p2['name']} ({p2['wt']} kg)"
             else:
-                p1 = r['p'][0]
-                left_cell = f"{p1['name']} ({p1['wt']} kg)"
-                right_cell = "[ BLOCKING REQUIRED ]"
+                p1 = r['p']
+                lc = f"{p1['name']} ({p1['wt']} kg)"
+                rc = "[ BLOCKING REQUIRED ]"
         else:
-            p1 = r['p'][0]
-            left_cell = f"CENTER LINE: {p1['name']} ({p1['wt']} kg)"
-            right_cell = f"CENTER LINE: {p1['name']} ({p1['wt']} kg)"
+            p1 = r['p']
+            lc = f"CENTER: {p1['name']} ({p1['wt']} kg)"
+            rc = f"CENTER: {p1['name']} ({p1['wt']} kg)"
             
         grid_rows.append({
             "Trailer Position": f"Row {idx:02d} ({accumulated_len:.1f} M Mark)",
-            "Left Column Side": left_cell,
-            "Right Column Side": right_cell,
+            "Left Column Side": lc,
+            "Right Column Side": rc,
             "Row Depth": f"{r['len']*100:.0f} cm"
         })
         
