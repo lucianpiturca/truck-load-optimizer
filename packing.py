@@ -1,263 +1,89 @@
-def pack_cargo(truck, manifest):
+def try_position(
+    pallets,
+    pallet_length,
+    pallet_width,
+    trailer_length,
+    trailer_width
+):
     """
-    Basic pallet placement engine.
-
-    Uses:
-    - real trailer dimensions
-    - pallet dimensions
-    - optional rotation
-    - pallet height
-    - pallet weight
-
-    Coordinates:
-        x = trailer length direction (m)
-        y = trailer width direction (m)
+    Checks if a pallet can fit without overlapping.
     """
 
-    pallets = []
+    step = 0.05   # 5 cm positioning accuracy
 
 
-    if manifest.empty:
-        return pallets
+    x = 0.0
+
+    while x + pallet_length <= trailer_length:
 
 
-    trailer_length = truck.trailer_length
-    trailer_width = truck.trailer_width
+        y = 0.0
+
+        while y + pallet_width <= trailer_width:
 
 
-    current_x = 0.0
-    current_y = 0.0
-
-    row_length = 0.0
-
-    pallet_id = 1
+            collision = False
 
 
-
-    for _, item in manifest.iterrows():
-
-
-        # Skip incomplete rows
-
-        try:
-
-            quantity = int(
-                item["Pallet Quantity"]
-            )
-
-            width = float(
-                item["Width (cm)"]
-            ) / 100
+            for p in pallets:
 
 
-            length = float(
-                item["Length (cm)"]
-            ) / 100
+                if p["length"] == 0:
+
+                    continue
 
 
-            height = float(
-                item["Height (cm)"]
-            )
+                overlap_x = not (
 
+                    x + pallet_length <= p["x"]
 
-            weight = float(
-                item["Weight (kg)"]
-            )
+                    or
 
-
-            description = str(
-                item["Goods Description"]
-            )
-
-
-            rotation_allowed = bool(
-                item["Allow Rotation"]
-            )
-
-
-        except Exception:
-
-            continue
-
-
-
-        for number in range(quantity):
-
-
-            placed = False
-
-
-            # Possible orientations
-
-            orientations = [
-
-                (
-                    length,
-                    width
-                )
-
-            ]
-
-
-            if rotation_allowed:
-
-                orientations.append(
-
-                    (
-                        width,
-                        length
-                    )
+                    x >= p["x"] + p["length"]
 
                 )
 
 
+                overlap_y = not (
 
-            for pallet_length, pallet_width in orientations:
+                    y + pallet_width <= p["y"]
 
+                    or
 
+                    y >= p["y"] + p["width"]
 
-                # Need next row?
-
-                if (
-                    current_y
-                    +
-                    pallet_width
-                    >
-                    trailer_width
-                ):
+                )
 
 
-                    current_x += row_length
+                if overlap_x and overlap_y:
 
-                    current_y = 0
-
-                    row_length = 0
-
-
-
-                # Check trailer length
-
-                if (
-                    current_x
-                    +
-                    pallet_length
-                    <=
-                    trailer_length
-                ):
-
-
-                    pallets.append(
-
-                        {
-
-                            "id":
-                                pallet_id,
-
-
-                            "label":
-                                f"{description}-{number+1}",
-
-
-                            "x":
-                                current_x,
-
-
-                            "y":
-                                current_y,
-
-
-                            "length":
-                                pallet_length,
-
-
-                            "width":
-                                pallet_width,
-
-
-                            "weight":
-                                weight,
-
-
-                            "height":
-                                height
-
-                        }
-
-                    )
-
-
-                    current_y += pallet_width
-
-
-                    row_length = max(
-
-                        row_length,
-
-                        pallet_length
-
-                    )
-
-
-                    pallet_id += 1
-
-
-                    placed = True
-
+                    collision = True
 
                     break
 
 
 
-            # If pallet cannot fit
-
-            if not placed:
+            if not collision:
 
 
-                pallets.append(
+                return {
 
-                    {
+                    "x": x,
 
-                        "id":
-                            pallet_id,
+                    "y": y
 
-
-                        "label":
-                            "NOT FIT",
-
-
-                        "x":
-                            0,
-
-
-                        "y":
-                            0,
-
-
-                        "length":
-                            0,
-
-
-                        "width":
-                            0,
-
-
-                        "weight":
-                            weight,
-
-
-                        "height":
-                            height
-
-                    }
-
-                )
-
-
-                pallet_id += 1
+                }
 
 
 
-    return pallets
+            y += step
+
+
+        x += step
+
+
+
+    return None
 
 
 
@@ -266,11 +92,11 @@ def pack_cargo(truck, manifest):
 def calculate_used_length(pallets):
 
     """
-    Calculates occupied trailer length.
+    Returns occupied trailer length in metres.
     """
 
 
-    valid_pallets = [
+    valid = [
 
         p for p in pallets
 
@@ -279,7 +105,7 @@ def calculate_used_length(pallets):
     ]
 
 
-    if not valid_pallets:
+    if not valid:
 
         return 0
 
@@ -289,6 +115,308 @@ def calculate_used_length(pallets):
 
         p["x"] + p["length"]
 
-        for p in valid_pallets
+        for p in valid
 
     )
+
+
+
+
+
+def pack_cargo(truck, manifest):
+
+    """
+    Improved pallet packing.
+
+    Priority:
+    1. Fit pallet
+    2. Test rotation
+    3. Choose shortest trailer usage
+
+    Each pallet can rotate independently.
+    """
+
+
+
+    pallets = []
+
+    pallet_id = 1
+
+
+
+    trailer_length = truck.trailer_length
+
+    trailer_width = truck.trailer_width
+
+
+
+    if manifest.empty:
+
+        return pallets
+
+
+
+    for _, item in manifest.iterrows():
+
+
+        try:
+
+
+            quantity = int(
+
+                item["Pallet Quantity"]
+
+            )
+
+
+            width = float(
+
+                item["Width (cm)"]
+
+            ) / 100
+
+
+            length = float(
+
+                item["Length (cm)"]
+
+            ) / 100
+
+
+            height = float(
+
+                item["Height (cm)"]
+
+            )
+
+
+            weight = float(
+
+                item["Weight (kg)"]
+
+            )
+
+
+            description = str(
+
+                item["Goods Description"]
+
+            )
+
+
+            allow_rotation = bool(
+
+                item["Allow Rotation"]
+
+            )
+
+
+        except Exception:
+
+
+            continue
+
+
+
+
+        for number in range(quantity):
+
+
+            options = []
+
+
+
+            # Normal orientation
+
+            options.append(
+
+                {
+
+                    "length": length,
+
+                    "width": width,
+
+                    "rotated": False
+
+                }
+
+            )
+
+
+
+            # Rotated orientation
+
+            if allow_rotation and length != width:
+
+
+                options.append(
+
+                    {
+
+                        "length": width,
+
+                        "width": length,
+
+                        "rotated": True
+
+                    }
+
+                )
+
+
+
+            best = None
+
+            best_score = None
+
+
+
+            for option in options:
+
+
+
+                position = try_position(
+
+                    pallets,
+
+                    option["length"],
+
+                    option["width"],
+
+                    trailer_length,
+
+                    trailer_width
+
+                )
+
+
+
+                if position is None:
+
+                    continue
+
+
+
+                test_length = max(
+
+                    calculate_used_length(pallets),
+
+                    position["x"] + option["length"]
+
+                )
+
+
+
+                score = test_length
+
+
+
+                if best_score is None or score < best_score:
+
+
+                    best_score = score
+
+
+                    best = {
+
+                        **option,
+
+                        **position
+
+                    }
+
+
+
+
+            if best is not None:
+
+
+                pallets.append(
+
+                    {
+
+                        "id": pallet_id,
+
+                        "label":
+
+                            f"{description}-{number+1}",
+
+
+                        "x":
+
+                            best["x"],
+
+
+                        "y":
+
+                            best["y"],
+
+
+                        "length":
+
+                            best["length"],
+
+
+                        "width":
+
+                            best["width"],
+
+
+                        "weight":
+
+                            weight,
+
+
+                        "height":
+
+                            height,
+
+
+                        "rotated":
+
+                            best["rotated"]
+
+                    }
+
+                )
+
+
+
+            else:
+
+
+                # pallet cannot fit
+
+                pallets.append(
+
+                    {
+
+                        "id": pallet_id,
+
+                        "label": "NOT FIT",
+
+                        "x": 0,
+
+                        "y": 0,
+
+                        "length": 0,
+
+                        "width": 0,
+
+                        "weight": weight,
+
+                        "height": height,
+
+                        "rotated": False
+
+                    }
+
+                )
+
+
+
+            pallet_id += 1
+
+
+
+    return pallets
