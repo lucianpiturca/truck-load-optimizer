@@ -23,7 +23,7 @@ class WebTruckOptimizer:
         else:  # European Frigo Truck (Max 22t Cargo)
             self.empty_steer = 4900
             self.empty_drive = 2400
-            self.empty_tridem = 7900  # Frigo units have heavier trailers/cooling motors
+            self.empty_tridem = 7900  # Heavier cooling units
             self.max_cargo_wt = 22000
 
         self.max_drive = 11500  # Legal EU limit for drive axle
@@ -74,11 +74,6 @@ class WebTruckOptimizer:
                 p_idx += 1
             row_idx += 1
             
-        # Optimization rule from your last adjustment: If the 6th row can be thinned to push weight back
-        if len(layout) >= 12 and layout[5]['type'] == 'DOUBLE' and len(layout[5]['p']) == 2:
-            # Shift a pallet from row 6 down to the rear if it balances the vehicle
-            pass 
-            
         return layout
 
     def analyze(self, layout):
@@ -123,7 +118,7 @@ with st.sidebar.form("add_pallet_form"):
     p_qty = st.number_input("Quantity of Pallets", min_value=1, value=5)
     p_len = st.number_input("Pallet Length/Depth (cm along truck)", min_value=10, value=100, step=10)
     p_wt = st.number_input("Weight per Pallet (kg)", min_value=50, value=1200, step=50)
-    submitted = st.form_submit_button("➕ Add Batch to Truck")  # BUG FIXED HERE
+    submitted = st.form_submit_button("➕ Add Batch to Truck")
     if submitted:
         st.session_state.manifest.append({'name': p_name, 'qty': p_qty, 'len': p_len, 'wt': p_wt})
 
@@ -132,7 +127,7 @@ if st.sidebar.button("🗑️ Clear Entire Manifest"):
     st.rerun()
 
 # --- MAIN SCREEN INTERFACE DISPLAY ---
-col1, col2 = st.columns()
+col1, col2 = st.columns(2)  # FIXED HERE: SPECIFIED COLUMN COUNT
 
 with col1:
     st.subheader("📋 Current Truck Manifest")
