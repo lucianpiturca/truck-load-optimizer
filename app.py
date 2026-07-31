@@ -38,9 +38,7 @@ class WebTruckOptimizer:
         self.max_axle_trailer = 8000
         self.max_total_weight = 40000
 
-    def generate_blueprint(
-        self, mft, front_gap_m=0.0
-    ):
+    def generate_blueprint(self, mft, front_singles=2):
         all_p = []
         for p in mft:
             for _ in range(int(p['qty'])):
@@ -67,48 +65,48 @@ class WebTruckOptimizer:
         )
 
         layout = []
-        if front_gap_m > 0:
-            layout.append({
-                'type': 'BUFFER',
-                'p': [],
-                'len': front_gap_m,
-                'wt': 0.0
-            })
-
         p_idx = 0
         total_p = len(all_p)
+        row_idx = 0
 
+        # Forces single centered pallets at the front to protect drive axle
+        # Then strictly alternates (double-single) to pack the load tightly
         while p_idx < total_p:
             rem = total_p - p_idx
-            if rem >= 2:
-                p1 = all_p[p_idx]
-                p2 = all_p[p_idx+1]
-                cw = p1['width'] + p2['width']
-                if cw <= self.trailer_width:
-                    layout.append({
-                        'type': 'DOUBLE',
-                        'p': [p1, p2],
-                        'len': max(p1['len'], p2['len']),
-                        'wt': p1['wt'] + p2['wt']
-                    })
-                    p_idx += 2
-                else:
-                    layout.append({
-                        'type': 'SINGLE',
-                        'p': [p1],
-                        'len': p1['len'],
-                        'wt': p1['wt']
-                    })
-                    p_idx += 1
-            else:
+            
+            if row_idx < front_singles:
                 p1 = all_p[p_idx]
                 layout.append({
-                    'type': 'SINGLE',
-                    'p': [p1],
-                    'len': p1['len'],
-                    'wt': p1['wt']
+                    'type': 'SINGLE_CENTER', 'p': [p1],
+                    'len': p1['len'], 'wt': p1['wt']
                 })
                 p_idx += 1
+            else:
+                if rem >= 2 and row_idx % 2 == 0:
+                    p1 = all_p[p_idx]
+                    p2 = all_p[p_idx+1]
+                    cw = p1['width'] + p2['width']
+                    if cw <= self.trailer_width:
+                        layout.append({
+                            'type': 'DOUBLE', 'p': [p1, p2],
+                            'len': max(p1['len'], p2['len']),
+                            'wt': p1['wt'] + p2['wt']
+                        })
+                        p_idx += 2
+                    else:
+                        layout.append({
+                            'type': 'SINGLE_CENTER', 'p': [p1],
+                            'len': p1['len'], 'wt': p1['wt']
+                        })
+                        p_idx += 1
+                else:
+                    p1 = all_p[p_idx]
+                    layout.append({
+                        'type': 'SINGLE_CENTER', 'p': [p1],
+                        'len': p1['len'], 'wt': p1['wt']
+                    })
+                    p_idx += 1
+            row_idx += 1
         return layout
 
     def analyze(self, layout):
@@ -197,13 +195,15 @@ with c1:
         st.session_state.manifest = ed_df.to_dict('records')
 
 if len(st.session_state.manifest) > 0:
-    gap = 0.0
-    layout = engine.generate_blueprint(st.session_state.manifest, gap)
+    # --- AUTO-INTERLEAVE SPACING SOLVER ---
+    singles_count = 1
+    layout = engine.generate_blueprint(st.session_state.manifest, singles_count)
     res = engine.analyze(layout)
 
-    while res['drive'] > engine.max_drive and gap < 5.0:
-        gap += 0.2
-        layout = engine.generate_blueprint(st.session_state.manifest, gap)
+    # Increases front single rows if Axle 2 is still overloaded
+    while res['drive'] > engine.max_drive and singles_count < 8:
+        singles_count += 1
+        layout = engine.generate_blueprint(st.session_state.manifest, singles_count)
         res = engine.analyze(layout)
 
     with c2:
@@ -235,42 +235,37 @@ if len(st.session_state.manifest) > 0:
     st.subheader("Trailer Grid Blueprint Map")
     st.info(f"Length Used: {res['cargo_len']}m / {engine.trailer_length}m | Rear Empty Space: {res['rear_gap']}m")
 
-    grid_rows = []
+    # Native Streamlit visual mapping containers (Zero Code Leakage)
+    st.markdown("--- **[ FRONT HEADBOARD ]** ---")
+    
     accumulated_len = 0.0
     for idx, r in enumerate(layout, 1):
         accumulated_len += r['len']
-        if r['type'] == 'DOUBLE':
-            if len(r['p']) == 2:
+        
+        # Draw metric line context
+        st.caption(f"📐 --- {accumulated_len:.1f} Meter Line Mark ---")
+        
+        # Build structural row block cells using clean columns
+        row_container = st.container(border=True)
+        with row_container:
+            cell_left, cell_right = st.columns(2)
+            
+            if r['type'] == 'DOUBLE':
                 p1_item = r['p'][0]
-                p2_item = r['p'][1]
-                lc = f"{p1_item['name']} ({p1_item['wt']} kg)"
-                rc = f"{p2_item['name']} ({p2_item['wt']} kg)"
+                p2_item = r['p'][1] if len(r['p']) == 2 else {'name': 'EMPTY', 'wt': 0}
+                
+                with cell_left:
+                    st.button(f"📦 {p1_item['name']} ({p1_item['wt']} kg)", key=f"L_{idx}", use_container_width=True)
+                with cell_right:
+                    if p2_item['name'] != 'EMPTY':
+                        st.button(f"📦 {p2_item['name']} ({p2_item['wt']} kg)", key=f"R_{idx}", use_container_width=True)
+                    else:
+                        st.button("❌ [Sideways Void - Lash Needed]", key=f"R_{idx}", disabled=True, use_container_width=True)
             else:
                 p1_item = r['p'][0]
-                lc = f"{p1_item['name']} ({p1_item['wt']} kg)"
-                rc = "[ BLOCKING REQUIRED ]"
-        elif r['type'] == 'BUFFER':
-            lc = f"[ FRONT BUFFER SPACE: {r['len']:.1f} M ]"
-            rc = "[ Use a solid structural blocking device ]"
-        else:
-            p1_item = r['p'][0]
-            lc = f"CENTER: {p1_item['name']} ({p1_item['wt']} kg)"
-            rc = f"CENTER: {p1_item['name']} ({p1_item['wt']} kg)"
+                with cell_left:
+                    st.button(f"🔹 CENTER: {p1_item['name']} ({p1_item['wt']} kg)", key=f"C_{idx}", type="primary", use_container_width=True)
+                with cell_right:
+                    st.button(f"🔹 CENTER: {p1_item['name']} ({p1_item['wt']} kg)", key=f"C2_{idx}", type="primary", use_container_width=True)
 
-        # Pre-evaluate text positions to prevent dictionary wrap overflows
-        row_pos = f"Row {idx:02d} ({accumulated_len:.1f} M Mark)"
-        row_dp = f"{r['len']*100:.0f} cm"
-
-        grid_rows.append({
-            "Trailer Position": row_pos,
-            "Left Column Side": lc,
-            "Right Column Side": rc,
-            "Row Depth": row_dp
-        })
-
-    grid_df = pd.DataFrame(grid_rows)
-    st.dataframe(
-        grid_df,
-        hide_index=True,
-        use_container_width=True
-    )
+    st.markdown("--- **[ REAR GATES ]** ---")
