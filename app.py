@@ -217,7 +217,7 @@ if len(st.session_state.manifest) > 0:
         st.subheader("Scale Report")
         if res['cargo_wt'] > engine.max_cargo_wt:
             err_w = res['cargo_wt'] - engine.max_cargo_wt
-            st.error(f"OVERWEIGHT: {err_w:,} kg Over Max!")
+            st.error(f"OVERWEIGHT: {err_w:,} kg Over Max Payload!")
         else:
             st.success("Cargo Weight Legal")
 
@@ -243,7 +243,6 @@ if len(st.session_state.manifest) > 0:
     st.subheader("Trailer Grid Blueprint Map")
     st.info(f"Length Used: {res['cargo_len']}m / {engine.trailer_length}m")
 
-    # --- MINIMAL SHORT-LINE TABLE GENERATOR ---
     grid_rows = []
     current_y = 0.0
     
@@ -253,19 +252,20 @@ if len(st.session_state.manifest) > 0:
         
         if r['type'] == 'DOUBLE':
             p_list = r['p']
+            # FIX: Explicit list index target extraction
+            p1_item = p_list[0]
             if len(p_list) == 2:
-                p1_item = p_list
-                p2_item = p_list
-                lc = f"Box {p1_item['wt']}kg"
-                rc = f"Box {p2_item['wt']}kg"
+                p2_item = p_list[1]
+                lc = f"Box ({p1_item['wt']} kg)"
+                rc = f"Box ({p2_item['wt']} kg)"
             else:
-                p1_item = p_list
-                lc = f"Box {p1_item['wt']}kg"
+                lc = f"Box ({p1_item['wt']} kg)"
                 rc = "Void Space"
         else:
+            # FIX: Reads target directly as a dictionary
             p1_item = r['p']
-            lc = f"Center Line"
-            rc = f"Box {p1_item['wt']}kg"
+            lc = "--- Center Line ---"
+            rc = f"Box ({p1_item['wt']} kg)"
             
         grid_rows.append({
             "Position": row_pos,
