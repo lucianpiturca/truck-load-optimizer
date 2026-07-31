@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 
 st.set_page_config(
-    page_title="Optimizer 5 Axe", 
+    page_title="Optimizer", 
     layout="wide"
 )
-st.title("Optimizator Incarcare 5 Axe (Romania/EU)")
+st.title("5-Axle Load Optimizer")
 
 class WebTruckOptimizer:
     def __init__(self, t_type):
@@ -32,11 +32,7 @@ class WebTruckOptimizer:
             self.empty_total = 18020
 
         self.kingpin_to_front = 1.6
-        self.wheelbase = 7.5
-        self.t1_pos = 10.3
         self.t2_pos = 11.6
-        self.t3_pos = 12.9
-        
         self.max_steer = 10000
         self.max_drive = 11500
         self.max_axle_trailer = 8000
@@ -60,36 +56,50 @@ class WebTruckOptimizer:
                     'len': fl / 100.0, 
                     'width': fw / 100.0, 
                     'wt': p['wt'], 
-                    'name': p['name']
+                    'name': p['name'],
+                    'order': p.get('load_order', 1)
                 })
         
-        pattern = [2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 2]
+        # Sort by user custom load order
+        all_p.sort(
+            key=lambda x: (x['order'], -x['wt'])
+        )
+        
         layout = []
         p_idx = 0
         total_p = len(all_p)
         
-        for step in pattern:
-            if p_idx >= total_p:
-                break
-            count = min(step, total_p - p_idx)
-            
-            if count == 2:
+        while p_idx < total_p:
+            rem = total_p - p_idx
+            if rem >= 2:
                 p1 = all_p[p_idx]
                 p2 = all_p[p_idx+1]
-                layout.append({
-                    'type': 'DOUBLE', 'p': [p1, p2], 
-                    'len': max(p1['len'], p2['len']), 
-                    'wt': p1['wt'] + p2['wt']
-                })
-                p_idx += 2
-            elif count == 1:
+                cw = p1['width'] + p2['width']
+                if cw <= self.trailer_width:
+                    layout.append({
+                        'type': 'DOUBLE', 
+                        'p': [p1, p2],
+                        'len': max(p1['len'], p2['len']),
+                        'wt': p1['wt'] + p2['wt']
+                    })
+                    p_idx += 2
+                else:
+                    layout.append({
+                        'type': 'SINGLE_CENTER', 
+                        'p': [p1],
+                        'len': p1['len'], 
+                        'wt': p1['wt']
+                    })
+                    p_idx += 1
+            else:
                 p1 = all_p[p_idx]
                 layout.append({
-                    'type': 'SINGLE_CENTER', 'p': [p1], 
-                    'len': p1['len'], 'wt': p1['wt']
+                    'type': 'SINGLE_CENTER', 
+                    'p': [p1],
+                    'len': p1['len'], 
+                    'wt': p1['wt']
                 })
                 p_idx += 1
-                
         return layout
 
     def analyze(self, layout):
@@ -129,44 +139,54 @@ class WebTruckOptimizer:
             'rear_gap': round(self.trailer_length - c_dist, 2)
         }
 
-st.sidebar.header("1. Tip Vehicul")
-t_opts = ["Curtainsider (16t Tara / 24t Cargo)", "Frigo (18t Tara / 22t Cargo)"]
-t_sel = st.sidebar.selectbox("Configuratie Camion", t_opts)
+st.sidebar.header("1. Profile")
+t_opts = ["Curtainsider", "Frigo"]
+t_sel = st.sidebar.selectbox("Truck type", t_opts)
 engine = WebTruckOptimizer(t_sel)
 
-st.sidebar.header("2. Adauga Paleti")
+st.sidebar.header("2. Add Cargo")
 if 'manifest' not in st.session_state:
     st.session_state.manifest = [{
-        'name': 'Palet Box', 'qty': 17, 'width': 100, 'len': 120, 'wt': 1300, 'auto_rotate': True
+        'name': 'Pallets A', 'qty': 17, 
+        'width': 100, 'len': 120, 'wt': 1300, 
+        'auto_rotate': True, 'load_order': 1
     }]
 
 with st.sidebar.form("add_p_form"):
-    p_name = st.text_input("Denumire Marfa", "Palet Box")
-    p_qty = st.number_input("Cantitate (Buc)", min_value=1, value=1)
-    p_width = st.number_input("Latime (cm)", min_value=10, value=100)
-    p_len = st.number_input("Lungime (cm)", min_value=10, value=120)
-    p_wt = st.number_input("Greutate Palet (kg)", min_value=50, value=1300)
-    p_rot = st.checkbox("Permite Auto-Rotire", value=True)
-    if st.form_submit_button("Adauga"):
+    p_name = st.text_input("Name", "Cargo")
+    p_qty = st.number_input("Qty", min_value=1, value=1)
+    p_width = st.number_input("W (cm)", min_value=10, value=100)
+    p_len = st.number_input("L (cm)", min_value=10, value=120)
+    p_wt = st.number_input("Wt (kg)", min_value=50, value=1300)
+    p_rot = st.checkbox("Rotate", value=True)
+    p_ord = st.number_input("Sequence Order", min_value=1, value=1, help="Higher sequence values move cargo toward the rear doors")
+    if st.form_submit_button("Add"):
         st.session_state.manifest.append({
-            'name': p_name, 'qty': p_qty, 'width': p_width, 'len': p_len, 'wt': p_wt, 'auto_rotate': p_rot
+            'name': p_name, 'qty': p_qty, 
+            'width': p_width, 'len': p_len, 
+            'wt': p_wt, 'auto_rotate': p_rot,
+            'load_order': p_ord
         })
 
-if st.sidebar.button("Goleste Camion"):
+if st.sidebar.button("Clear"):
     st.session_state.manifest = []
     st.rerun()
 
 c1, c2 = st.columns(2)
 with c1:
-    st.subheader("Manifest Curent Incarcare")
+    st.subheader("Manifest & Positioning Editor")
+    st.markdown("Change the Sequence Order column values to dynamically shift cargo rows forward or backward to balance axles.")
     if len(st.session_state.manifest) == 0:
-        st.info("Camionul este gol.")
+        st.info("Empty.")
     else:
         df = pd.DataFrame(st.session_state.manifest)
         ed_df = st.data_editor(
             df, column_config={
-                "name": "Descriere", "qty": "Buc", "width": "L (cm)", "len": "H (cm)", "wt": "G (kg)",
-                "auto_rotate": st.column_config.CheckboxColumn("Rotire")
+                "name": "Desc", "qty": "Qty", 
+                "width": "W (cm)", "len": "L (cm)", 
+                "wt": "Wt (kg)", 
+                "auto_rotate": st.column_config.CheckboxColumn("Rotate?"),
+                "load_order": "Sequence Order"
             }, hide_index=True, use_container_width=True
         )
         st.session_state.manifest = ed_df.to_dict('records')
@@ -176,81 +196,60 @@ if len(st.session_state.manifest) > 0:
     res = engine.analyze(layout)
     
     with c2:
-        st.subheader("Cantar electronic (Raport Cele 5 Axe)")
+        st.subheader("5-Axle Scale Weight Report")
         if res['gross_total'] > engine.max_total_weight:
-            st.error(f"DEPASED LIMIT: {res['gross_total']:,} kg / Max: {engine.max_total_weight:,} kg")
+            st.error(f"OVERWEIGHT: {res['gross_total']:,} kg")
         else:
-            st.success(f"Masa Totala: {res['gross_total']:,} kg (LEGAL)")
+            st.success(f"Total Gross: {res['gross_total']:,} kg (LEGAL)")
             
-        st.markdown("**Cap Tractor (Axe 1 - 2):**")
+        st.markdown("**Tractor Axles:**")
         if res['steer'] > engine.max_steer:
-            st.error(f"Axa 1 (Directie): {res['steer']:,} kg")
+            st.error(f"Axle 1 (Steer): {res['steer']:,} kg / Max: 10,000 kg")
         else:
-            st.success(f"Axa 1 (Directie): {res['steer']:,} kg")
+            st.success(f"Axle 1 (Steer): {res['steer']:,} kg / Max: 10,000 kg")
             
         if res['drive'] > engine.max_drive:
-            st.error(f"Axa 2 (Tractiune): {res['drive']:,} kg")
+            st.error(f"Axle 2 (Drive): {res['drive']:,} kg / Max: 11,500 kg")
         else:
-            st.success(f"Axa 2 (Tractiune): {res['drive']:,} kg")
+            st.success(f"Axle 2 (Drive): {res['drive']:,} kg / Max: 11,500 kg")
             
-        st.markdown("**Semiremorca (Axe 3 - 4 - 5):**")
-        for idx, axle_key in enumerate(['t1', 't2', 't3'], 3):
-            val = res[axle_key]
-            if val > engine.max_axle_trailer:
-                st.error(f"Axa {idx}: {val:,} kg")
+        st.markdown("**Trailer Axles:**")
+        for idx, k in enumerate(['t1', 't2', 't3'], 3):
+            v = res[k]
+            if v > engine.max_axle_trailer:
+                st.error(f"Axle {idx}: {v:,} kg / Max: 8,000 kg")
             else:
-                st.success(f"Axa {idx}: {val:,} kg")
+                st.success(f"Axle {idx}: {v:,} kg / Max: 8,000 kg")
 
-    st.subheader("Harta Scalata la Dimensiuni Reale")
-    sy, sx = 60, 160
-    cw = int(engine.trailer_width * sx)
-    ch = int(engine.trailer_length * sy)
+    st.subheader("Trailer Grid Blueprint Map")
+    st.info(f"Length Used: {res['cargo_len']}m / 13.6m | Rear Empty Space: {res['rear_gap']}m")
     
-    st.markdown(f"""
-        <style>
-        .t-bed {{ position: relative; width: {cw}px; height: {ch}px; border: 4px solid #111; background: #fff; margin: 0 auto; }}
-        .g-ln {{ position: absolute; left: 0; width: 100%; border-top: 1px dashed #ccc; }}
-        .g-lb {{ position: absolute; left: -30px; color: #555; font-size: 10px; font-weight: bold; }}
-        .p-un {{ position: absolute; background: #1d4ed8; color: white; border: 1px solid #000; border-radius: 2px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 9px; font-weight: bold; overflow: hidden; }}
-        .p-sng {{ background: #0284c7; }}
-        </style>
-    """, unsafe_allow_html=True)
-
-    # Izolare sigura anti-scurgere text prin variabile de separare
-    LT = "<"
-    GT = ">"
+    # Process structured row text elements into a clean dataframe table display
+    grid_rows = []
+    accumulated_len = 0.0
     
-    h = "<div>PERETE FRONTAL (CALE)</div>"
-    h += LT + f"div class='t-bed'" + GT
-    for m in range(1, int(engine.trailer_length) + 1):
-        tp = int(m * sy)
-        h += LT + f"div class='g-ln' style='top:{tp}px;'" + GT
-        h += LT + f"span class='g-lb'" + GT + f"{m}M" + LT + "/span" + GT
-        h += LT + "/div" + GT
-
-    cy = 0.0
-    for r in layout:
-        rl = r['len']
-        bh = int(rl * sy)
-        pt = int(cy * sy)
+    for idx, r in enumerate(layout, 1):
+        accumulated_len += r['len']
         if r['type'] == 'DOUBLE':
             if len(r['p']) == 2:
-                p1 = r['p'][0]
-                p2 = r['p'][1]
-                w1 = int(p1['width'] * sx)
-                w2 = int(p2['width'] * sx)
-                h += LT + f"div class='p-un' style='left:0;top:{pt}px;width:{w1}px;height:{bh}px;'" + GT + f"{p1['name']}" + LT + "br" + GT + f"{p1['wt']}k" + LT + "/div" + GT
-                h += LT + f"div class='p-un' style='right:0;top:{pt}px;width:{w2}px;height:{bh}px;'" + GT + f"{p2['name']}" + LT + "br" + GT + f"{p2['wt']}k" + LT + "/div" + GT
+                p1, p2 = r['p'][0], r['p'][1]
+                left_cell = f"{p1['name']} ({p1['wt']} kg)"
+                right_cell = f"{p2['name']} ({p2['wt']} kg)"
             else:
                 p1 = r['p'][0]
-                w1 = int(p1['width'] * sx)
-                h += LT + f"div class='p-un' style='left:0;top:{pt}px;width:{w1}px;height:{bh}px;'" + GT + f"{p1['name']}" + LT + "br" + GT + f"{p1['wt']}k" + LT + "/div" + GT
+                left_cell = f"{p1['name']} ({p1['wt']} kg)"
+                right_cell = "[ BLOCKING REQUIRED ]"
         else:
             p1 = r['p'][0]
-            w1 = int(p1['width'] * sx)
-            pl = int((cw - w1) / 2)
-            h += LT + f"div class='p-un p-sng' style='left:{pl}px;top:{pt}px;width:{w1}px;height:{bh}px;'" + GT + f"{p1['name']}" + LT + "br" + GT + f"{p1['wt']}k" + LT + "/div" + GT
-        cy += rl
+            left_cell = f"CENTER LINE: {p1['name']} ({p1['wt']} kg)"
+            right_cell = f"CENTER LINE: {p1['name']} ({p1['wt']} kg)"
+            
+        grid_rows.append({
+            "Trailer Position": f"Row {idx:02d} ({accumulated_len:.1f} M Mark)",
+            "Left Column Side": left_cell,
+            "Right Column Side": right_cell,
+            "Row Depth": f"{r['len']*100:.0f} cm"
+        })
         
-    h += LT + "/div" + GT + "<div>USI SPATE</div>"
-    st.markdown(h, unsafe_allow_html=True)
+    grid_df = pd.DataFrame(grid_rows)
+    st.dataframe(grid_df, hide_index=True, use_container_width=True)
