@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 
+from optimizer import optimize_load
 
 from truck import TRUCKS
 
@@ -130,20 +131,39 @@ edited = st.data_editor(
 
 st.session_state.cargo = edited
 
-
+st.info(
+    "Optimizer priority: Height → Weight → Axle legality → Space efficiency"
+)
 
 # ---------------------------------
 # Packing
 # ---------------------------------
 
-pallets = pack_cargo(
+if st.button("🚀 Optimize Load"):
 
-    truck,
+    st.session_state.optimized = True
 
-    edited
 
-)
 
+if "optimized" in st.session_state:
+
+    pallets = optimize_load(
+
+        truck,
+
+        edited
+
+    )
+
+else:
+
+    pallets = pack_cargo(
+
+        truck,
+
+        edited
+
+    )
 
 
 # ---------------------------------
