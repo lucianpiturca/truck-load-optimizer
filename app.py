@@ -38,7 +38,9 @@ class WebTruckOptimizer:
         self.max_axle_trailer = 8000
         self.max_total_weight = 40000
 
-    def generate_blueprint(self, mft, front_singles=2):
+    def generate_blueprint(
+        self, mft, front_singles=2
+    ):
         all_p = []
         for p in mft:
             for _ in range(int(p['qty'])):
@@ -69,8 +71,6 @@ class WebTruckOptimizer:
         total_p = len(all_p)
         row_idx = 0
 
-        # Forces single centered pallets at the front to protect drive axle
-        # Then strictly alternates (double-single) to pack the load tightly
         while p_idx < total_p:
             rem = total_p - p_idx
             
@@ -195,12 +195,10 @@ with c1:
         st.session_state.manifest = ed_df.to_dict('records')
 
 if len(st.session_state.manifest) > 0:
-    # --- AUTO-INTERLEAVE SPACING SOLVER ---
     singles_count = 1
     layout = engine.generate_blueprint(st.session_state.manifest, singles_count)
     res = engine.analyze(layout)
 
-    # Increases front single rows if Axle 2 is still overloaded
     while res['drive'] > engine.max_drive and singles_count < 8:
         singles_count += 1
         layout = engine.generate_blueprint(st.session_state.manifest, singles_count)
@@ -232,40 +230,51 @@ if len(st.session_state.manifest) > 0:
             else:
                 st.success(f"Axle {idx}: {v:,} kg / Max: 8k kg")
 
-    st.subheader("Trailer Grid Blueprint Map")
-    st.info(f"Length Used: {res['cargo_len']}m / {engine.trailer_length}m | Rear Empty Space: {res['rear_gap']}m")
+    st.subheader("Real-Dimension Scaled Trailer Graph Map")
+    st.info(f"Length: {res['cargo_len']}m / {engine.trailer_length}m")
 
-    # Native Streamlit visual mapping containers (Zero Code Leakage)
-    st.markdown("--- **[ FRONT HEADBOARD ]** ---")
+    # --- NATIVE STREAMLIT SCALED GRAPH ENGINE ---
+    plot_data = []
+    current_y = 0.0
     
-    accumulated_len = 0.0
-    for idx, r in enumerate(layout, 1):
-        accumulated_len += r['len']
-        
-        # Draw metric line context
-        st.caption(f"📐 --- {accumulated_len:.1f} Meter Line Mark ---")
-        
-        # Build structural row block cells using clean columns
-        row_container = st.container(border=True)
-        with row_container:
-            cell_left, cell_right = st.columns(2)
-            
-            if r['type'] == 'DOUBLE':
-                p1_item = r['p'][0]
-                p2_item = r['p'][1] if len(r['p']) == 2 else {'name': 'EMPTY', 'wt': 0}
-                
-                with cell_left:
-                    st.button(f"📦 {p1_item['name']} ({p1_item['wt']} kg)", key=f"L_{idx}", use_container_width=True)
-                with cell_right:
-                    if p2_item['name'] != 'EMPTY':
-                        st.button(f"📦 {p2_item['name']} ({p2_item['wt']} kg)", key=f"R_{idx}", use_container_width=True)
-                    else:
-                        st.button("❌ [Sideways Void - Lash Needed]", key=f"R_{idx}", disabled=True, use_container_width=True)
+    for idx, r in enumerate(layout):
+        r_len = r['len']
+        if r['type'] == 'DOUBLE':
+            if len(r['p']) == 2:
+                p1, p2 = r['p'], r['p']
+                plot_data.append({
+                    "Truck Width (X)": p1['width'] / 2,
+                    "Truck Length (Y)": current_y + (p1['len'] / 2),
+                    "Weight": f"{p1['wt']} kg"
+                })
+                plot_data.append({
+                    "Truck Width (X)": engine.trailer_width - (p2['width'] / 2),
+                    "Truck Length (Y)": current_y + (p2['len'] / 2),
+                    "Weight": f"{p2['wt']} kg"
+                })
             else:
-                p1_item = r['p'][0]
-                with cell_left:
-                    st.button(f"🔹 CENTER: {p1_item['name']} ({p1_item['wt']} kg)", key=f"C_{idx}", type="primary", use_container_width=True)
-                with cell_right:
-                    st.button(f"🔹 CENTER: {p1_item['name']} ({p1_item['wt']} kg)", key=f"C2_{idx}", type="primary", use_container_width=True)
+                p1 = r['p']
+                plot_data.append({
+                    "Truck Width (X)": p1['width'] / 2,
+                    "Truck Length (Y)": current_y + (p1['len'] / 2),
+                    "Weight": f"{p1['wt']} kg"
+                })
+        else:
+            p1 = r['p']
+            plot_data.append({
+                "Truck Width (X)": engine.trailer_width / 2,
+                "Truck Length (Y)": current_y + (p1['len'] / 2),
+                "Weight": f"{p1['wt']} kg"
+            })
+        current_y += r_len
 
-    st.markdown("--- **[ REAR GATES ]** ---")
+    # Render a responsive scatter matrix map matching dimensions
+    chart_df = pd.DataFrame(plot_data)
+    st.scatter_chart(
+        chart_df,
+        x="Truck Width (X)",
+        y="Truck Length (Y)",
+        color="Weight",
+        size="Truck Width (X)",
+        use_container_width=True
+    )
