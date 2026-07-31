@@ -88,11 +88,11 @@ for i, axle in enumerate(truck.empty_axles):
 
 
 # ---------------------------------
-# Cargo table
+# Cargo input
 # ---------------------------------
 
 st.subheader(
-    "📦 Cargo Manifest"
+    "📦 Add Cargo"
 )
 
 
@@ -100,102 +100,145 @@ if "cargo" not in st.session_state:
 
     st.session_state.cargo = pd.DataFrame(
 
-    [
-        {
-            "Goods Description": "",
-            "Pallet Quantity": 1,
-            "Width (cm)": 120,
-            "Length (cm)": 80,
-            "Height (cm)": 0,
-            "Weight (kg)": 0,
-            "Allow Rotation": False
-        }
-    ]
+        columns=[
 
+            "Goods Description",
+            "Pallet Quantity",
+            "Width (cm)",
+            "Length (cm)",
+            "Height (cm)",
+            "Weight (kg)",
+            "Allow Rotation"
+
+        ]
+
+    )
+
+
+with st.form("cargo_form"):
+
+
+    col1, col2, col3 = st.columns(3)
+
+
+    with col1:
+
+        description = st.text_input(
+            "Goods Description"
+        )
+
+        quantity = st.number_input(
+            "Pallet Quantity",
+            min_value=1,
+            value=1,
+            step=1
+        )
+
+
+    with col2:
+
+        width = st.number_input(
+            "Width (cm)",
+            min_value=1,
+            value=120,
+            step=1
+        )
+
+
+        length = st.number_input(
+            "Length (cm)",
+            min_value=1,
+            value=80,
+            step=1
+        )
+
+
+    with col3:
+
+        height = st.number_input(
+            "Height (cm)",
+            min_value=1,
+            value=240,
+            step=1
+        )
+
+
+        weight = st.number_input(
+            "Weight (kg)",
+            min_value=1,
+            value=1000,
+            step=1
+        )
+
+
+    rotation = st.checkbox(
+        "Allow Rotation",
+        value=True
+    )
+
+
+    submitted = st.form_submit_button(
+        "➕ Add Cargo"
+    )
+
+
+
+if submitted:
+
+
+    new_row = pd.DataFrame(
+
+        [
+            {
+
+                "Goods Description": description,
+
+                "Pallet Quantity": quantity,
+
+                "Width (cm)": width,
+
+                "Length (cm)": length,
+
+                "Height (cm)": height,
+
+                "Weight (kg)": weight,
+
+                "Allow Rotation": rotation
+
+            }
+
+        ]
+
+    )
+
+
+    st.session_state.cargo = pd.concat(
+
+        [
+            st.session_state.cargo,
+            new_row
+        ],
+
+        ignore_index=True
+
+    )
+
+
+
+st.subheader(
+    "Current Cargo"
 )
 
 
-
-edited = st.data_editor(
+st.dataframe(
 
     st.session_state.cargo,
 
-    num_rows="dynamic",
-
-    use_container_width=True,
-
     hide_index=True,
 
-    key="cargo_editor",
-
-
-    column_config={
-
-
-        "Goods Description":
-
-            st.column_config.TextColumn(
-                "Goods Description"
-            ),
-
-
-        "Pallet Quantity":
-
-            st.column_config.NumberColumn(
-                "Pallet Quantity",
-                min_value=1,
-                step=1
-            ),
-
-
-        "Width (cm)":
-
-            st.column_config.NumberColumn(
-                "Width (cm)",
-                min_value=1,
-                step=1
-            ),
-
-
-        "Length (cm)":
-
-            st.column_config.NumberColumn(
-                "Length (cm)",
-                min_value=1,
-                step=1
-            ),
-
-
-        "Height (cm)":
-
-            st.column_config.NumberColumn(
-                "Height (cm)",
-                min_value=0,
-                step=1
-            ),
-
-
-        "Weight (kg)":
-
-            st.column_config.NumberColumn(
-                "Weight (kg)",
-                min_value=0,
-                step=1
-            ),
-
-
-        "Allow Rotation":
-
-            st.column_config.CheckboxColumn(
-                "Allow Rotation"
-            )
-
-    }
+    use_container_width=True
 
 )
-
-
-st.session_state.cargo = edited
 
 
 # ---------------------------------
