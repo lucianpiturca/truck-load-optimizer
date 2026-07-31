@@ -100,23 +100,28 @@ if "cargo" not in st.session_state:
 
     st.session_state.cargo = pd.DataFrame(
 
-        [
-            {
-                "Goods Description": "",
-                "Pallet Quantity": 1,
-                "Width (cm)": 120,
-                "Length (cm)": 80,
-                "Height (cm)": 0,
-                "Weight (kg)": 0,
-                "Allow Rotation": True
-            }
+        columns=[
+
+            "Goods Description",
+            "Pallet Quantity",
+            "Width (cm)",
+            "Length (cm)",
+            "Height (cm)",
+            "Weight (kg)",
+            "Allow Rotation"
+
         ]
 
     )
 
 
+def save_cargo():
 
-cargo_editor = st.data_editor(
+    st.session_state.cargo = st.session_state.cargo_editor
+
+
+
+st.data_editor(
 
     st.session_state.cargo,
 
@@ -126,7 +131,9 @@ cargo_editor = st.data_editor(
 
     hide_index=True,
 
-    key="cargo_table",
+    key="cargo_editor",
+
+    on_change=save_cargo,
 
 
     column_config={
@@ -139,6 +146,7 @@ cargo_editor = st.data_editor(
             ),
 
 
+
         "Pallet Quantity":
 
             st.column_config.NumberColumn(
@@ -146,6 +154,7 @@ cargo_editor = st.data_editor(
                 min_value=1,
                 step=1
             ),
+
 
 
         "Width (cm)":
@@ -157,6 +166,7 @@ cargo_editor = st.data_editor(
             ),
 
 
+
         "Length (cm)":
 
             st.column_config.NumberColumn(
@@ -164,6 +174,7 @@ cargo_editor = st.data_editor(
                 min_value=1,
                 step=1
             ),
+
 
 
         "Height (cm)":
@@ -175,6 +186,7 @@ cargo_editor = st.data_editor(
             ),
 
 
+
         "Weight (kg)":
 
             st.column_config.NumberColumn(
@@ -182,6 +194,7 @@ cargo_editor = st.data_editor(
                 min_value=0,
                 step=1
             ),
+
 
 
         "Allow Rotation":
@@ -193,9 +206,6 @@ cargo_editor = st.data_editor(
     }
 
 )
-
-
-st.session_state.cargo = cargo_editor
 
 
 # ---------------------------------
