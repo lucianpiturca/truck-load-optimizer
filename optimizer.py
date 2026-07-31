@@ -1,208 +1,384 @@
 from packing import pack_cargo
-from axles import calculate_axle_loads, check_axles
+from axles import (
+    calculate_axle_loads,
+    check_axles,
+    calculate_gross_weight
+)
 
 
 
-def calculate_score(pallets, axle_results, truck):
+def pallet_weight(pallet):
 
-    score = 0
-
-
-    # ---------------------------------
-    # Axle legality
-    # ---------------------------------
-
-    for axle in axle_results:
-
-        if not axle["legal"]:
-
-            score -= 100000
-
-        else:
-
-            remaining = (
-
-                axle["limit"]
-
-                -
-
-                axle["weight"]
-
-            )
-
-            score += remaining
+    return pallet.get(
+        "weight",
+        0
+    )
 
 
 
-    # ---------------------------------
-    # Prefer taller pallets forward
-    # ---------------------------------
+def legal_axles(truck, pallets):
 
-    for pallet in pallets:
-
-
-        distance_from_front = (
-
-            truck.trailer_length
-
-            -
-
-            pallet["x"]
-
-        )
+    axle_loads = calculate_axle_loads(
+        truck,
+        pallets
+    )
 
 
-        score += (
+    results = check_axles(
 
-            pallet["height"]
+        truck,
 
-            *
+        axle_loads
 
-            distance_from_front
-
-            *
-
-            0.05
-
-        )
+    )
 
 
+    return all(
 
-    # ---------------------------------
-    # Prefer compact loading
-    # ---------------------------------
+        axle["legal"]
 
-    if pallets:
-
-        used_length = max(
-
-            p["x"] + p["length"]
-
-            for p in pallets
-
-            if p["length"] > 0
-
-        )
-
-
-        score -= used_length * 10
-
-
-
-    return score
-
-
-
-
-
-def optimize_load(truck, manifest):
-
-
-    candidates = []
-
-
-
-    # Original order
-
-    candidates.append(
-
-        manifest.copy()
+        for axle in results
 
     )
 
 
 
-    # Tallest first
+def optimize_load(truck, manifest):
 
-    if "Height (cm)" in manifest.columns:
+    """
+    Loads maximum legal cargo.
 
-        candidates.append(
+    Priority:
 
-            manifest.sort_values(
+    1. Keep axle weights legal
+    2. Keep total weight legal
+    3. Use available space
+    4. Prefer taller pallets first
 
-                by="Height (cm)",
+    """
 
-                ascending=False
 
-            ).copy()
+    loaded = []
+
+    rejected = []
+
+
+
+    if manifest.empty:
+
+        return loaded
+
+
+
+    # ---------------------------------
+    # Expand pallet quantities
+    # ---------------------------------
+
+    pallet_list = []
+
+
+
+    for _, row in manifest.iterrows():
+
+
+        try:
+
+            quantity = int(
+                row["Pallet Quantity"]
+            )
+
+        except:
+
+            continue
+
+
+
+        for i in range(quantity):
+
+
+            pallet_list.append(
+
+                {
+
+                    "Goods Description":
+                        row["Goods Description"],
+
+
+                    "Width (cm)":
+                        row["Width (cm)"],
+
+
+                    "Length (cm)":
+                        row["Length (cm)"],
+
+
+                    "Height (cm)":
+                        row["Height (cm)"],
+
+
+                    "Weight (kg)":
+                        row["Weight (kg)"],
+
+
+                    "Allow Rotation":
+                        row["Allow Rotation"],
+
+
+                }
+
+            )
+
+
+
+    # ---------------------------------
+    # Priority:
+    # height first, weight second
+    # ---------------------------------
+
+    pallet_list.sort(
+
+        key=lambda x:
+
+        (
+
+            x["Height (cm)"],
+
+            -x["Weight (kg)"]
+
+        ),
+
+        reverse=True
+
+    )
+
+
+
+    current_manifest = []
+
+
+
+    for pallet in pallet_list:
+
+
+        test_manifest = current_manifest + [pallet]
+
+
+
+        df = manifest_from_list(
+
+            test_manifest
 
         )
 
 
 
-    # Heaviest first
-
-    if "Weight (kg)" in manifest.columns:
-
-        candidates.append(
-
-            manifest.sort_values(
-
-                by="Weight (kg)",
-
-                ascending=False
-
-            ).copy()
-
-        )
-
-
-
-    best_layout = None
-
-    best_score = -999999999
-
-
-
-    for candidate in candidates:
-
-
-        pallets = pack_cargo(
+        layout = pack_cargo(
 
             truck,
 
-            candidate
+            df
 
         )
 
 
-        axle_loads = calculate_axle_loads(
+
+        # remove pallets that do not fit physically
+
+        layout = [
+
+            p for p in layout
+
+            if p["length"] > 0
+
+        ]
+
+
+
+        # Check space
+
+        if len(layout) < len(test_manifest):
+
+
+            rejected.append(
+
+                {
+
+                    "pallet": pallet,
+
+                    "reason":
+
+                    "No trailer space available"
+
+                }
+
+            )
+
+
+            continue
+
+
+
+        # Check weight
+
+        gross = calculate_gross_weight(
+
+            calculate_axle_loads(
+
+                truck,
+
+                layout
+
+            )
+
+        )
+
+
+
+        if gross > truck.legal_gross:
+
+
+            rejected.append(
+
+                {
+
+                    "pallet": pallet,
+
+                    "reason":
+
+                    "Maximum legal gross weight exceeded"
+
+                }
+
+            )
+
+
+            continue
+
+
+
+        # Check axles
+
+        if not legal_axles(
 
             truck,
 
-            pallets
+            layout
+
+        ):
+
+
+            rejected.append(
+
+                {
+
+                    "pallet": pallet,
+
+                    "reason":
+
+                    "Axle weight limit exceeded"
+
+                }
+
+            )
+
+
+            continue
+
+
+
+        # Accept pallet
+
+        current_manifest.append(
+
+            pallet
 
         )
 
 
-        axle_results = check_axles(
+    # ---------------------------------
+    # Final packing
+    # ---------------------------------
 
-            truck,
+    final_df = manifest_from_list(
 
-            axle_loads
+        current_manifest
 
-        )
-
-
-        score = calculate_score(
-
-            pallets,
-
-            axle_results,
-
-            truck
-
-        )
+    )
 
 
+    loaded = pack_cargo(
 
-        if score > best_score:
+        truck,
+
+        final_df
+
+    )
 
 
-            best_score = score
+    loaded = [
 
-            best_layout = pallets
+        p for p in loaded
+
+        if p["length"] > 0
+
+    ]
 
 
 
-    return best_layout
+    return loaded, rejected
+
+
+
+
+
+def manifest_from_list(items):
+
+    """
+    Converts internal pallet list
+    back into optimizer dataframe.
+    """
+
+    import pandas as pd
+
+
+
+    return pd.DataFrame(
+
+        [
+
+            {
+
+                "Goods Description":
+                    p["Goods Description"],
+
+
+                "Pallet Quantity":
+                    1,
+
+
+                "Width (cm)":
+                    p["Width (cm)"],
+
+
+                "Length (cm)":
+                    p["Length (cm)"],
+
+
+                "Height (cm)":
+                    p["Height (cm)"],
+
+
+                "Weight (kg)":
+                    p["Weight (kg)"],
+
+
+                "Allow Rotation":
+                    p["Allow Rotation"]
+
+            }
+
+            for p in items
+
+        ]
+
+    )
