@@ -100,19 +100,19 @@ if "cargo" not in st.session_state:
 
     st.session_state.cargo = pd.DataFrame(
 
-        [
-            {
-                "Goods Description": "",
-                "Pallet Quantity": None,
-                "Width (cm)": None,
-                "Length (cm)": None,
-                "Height (cm)": None,
-                "Weight (kg)": None,
-                "Allow Rotation": False
-            }
-        ]
+    [
+        {
+            "Goods Description": "",
+            "Pallet Quantity": 1,
+            "Width (cm)": 120,
+            "Length (cm)": 80,
+            "Height (cm)": 0,
+            "Weight (kg)": 0,
+            "Allow Rotation": False
+        }
+    ]
 
-    )
+)
 
 
 
