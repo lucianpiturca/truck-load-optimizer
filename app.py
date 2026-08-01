@@ -21,7 +21,7 @@ from report import (
 
 
 # ==========================================================
-# PAGE CONFIG
+# PAGE SETTINGS
 # ==========================================================
 
 st.set_page_config(
@@ -53,13 +53,15 @@ if "solution" not in st.session_state:
 
 
 # ==========================================================
-# TRUCK SELECT
+# TRUCK SELECTION
 # ==========================================================
+
+st.sidebar.header("Truck configuration")
 
 
 truck_name = st.sidebar.selectbox(
 
-    "Truck type",
+    "Select truck",
 
     list(TRUCKS.keys())
 
@@ -73,13 +75,15 @@ truck = TRUCKS[truck_name]
 st.sidebar.info(
 
     f"""
-{truck.name}
+**{truck.name}**
 
-Inside:
+Inside dimensions:
+
 {truck.trailer_width:.2f} m ×
 {truck.trailer_length:.2f} m
 
-Legal gross:
+Maximum gross:
+
 {truck.legal_gross/1000:.0f} tons
 """
 
@@ -91,18 +95,23 @@ Legal gross:
 # ADD CARGO
 # ==========================================================
 
-st.subheader("📦 Add Cargo")
+st.subheader("📦 Cargo input")
 
 
+with st.form(
 
-with st.form("cargo_form"):
+    "cargo_form",
+
+    clear_on_submit=True
+
+):
 
 
-    col1, col2, col3 = st.columns(3)
+    c1, c2, c3 = st.columns(3)
 
 
+    with c1:
 
-    with col1:
 
         description = st.text_input(
 
@@ -122,7 +131,6 @@ with st.form("cargo_form"):
         )
 
 
-
         weight = st.number_input(
 
             "Weight per pallet (kg)",
@@ -134,12 +142,14 @@ with st.form("cargo_form"):
         )
 
 
+    with c2:
 
-    with col2:
 
         width = st.number_input(
 
             "Width (cm)",
+
+            min_value=1,
 
             value=120
 
@@ -150,17 +160,21 @@ with st.form("cargo_form"):
 
             "Length (cm)",
 
+            min_value=1,
+
             value=100
 
         )
 
 
-    with col3:
+    with c3:
 
 
         height = st.number_input(
 
             "Height (cm)",
+
+            min_value=1,
 
             value=240
 
@@ -179,10 +193,9 @@ with st.form("cargo_form"):
 
     add = st.form_submit_button(
 
-        "➕ Add Cargo"
+        "➕ Add cargo"
 
     )
-
 
 
     if add:
@@ -196,11 +209,11 @@ with st.form("cargo_form"):
 
                 quantity=int(quantity),
 
-                width=width/100,
+                width=float(width)/100,
 
-                length=length/100,
+                length=float(length)/100,
 
-                height=height/100,
+                height=float(height)/100,
 
                 weight=float(weight),
 
@@ -223,78 +236,65 @@ with st.form("cargo_form"):
 # CARGO TABLE
 # ==========================================================
 
+st.divider()
 
-st.subheader("Current Cargo")
+st.subheader("📋 Current cargo")
 
 
 
 if st.session_state.cargo:
 
 
-    table = pd.DataFrame([
+    cargo_table = pd.DataFrame(
 
-        {
+        [
 
-            "Delete": False,
+            {
 
-            "Description": c.description,
+                "Description": item.description,
 
-            "Qty": c.quantity,
+                "Quantity": item.quantity,
 
-            "Width cm": int(c.width*100),
+                "Width cm": int(item.width*100),
 
-            "Length cm": int(c.length*100),
+                "Length cm": int(item.length*100),
 
-            "Height cm": int(c.height*100),
+                "Height cm": int(item.height*100),
 
-            "Weight kg": c.weight,
+                "Weight kg": item.weight,
 
-            "Rotation": c.allow_rotation
+                "Rotation": item.allow_rotation
 
-        }
+            }
 
-        for c in st.session_state.cargo
+            for item in st.session_state.cargo
 
-    ])
-
-
-
-    edited = st.data_editor(
-
-        table,
-
-        hide_index=True,
-
-        use_container_width=True
+        ]
 
     )
 
 
+    st.dataframe(
+
+        cargo_table,
+
+        use_container_width=True,
+
+        hide_index=True
+
+    )
+
 
     if st.button(
 
-        "🗑 Delete Selected"
+        "🗑 Clear all cargo"
 
     ):
 
 
-        new = []
+        st.session_state.cargo = []
 
-
-        for index,row in edited.iterrows():
-
-
-            if not row["Delete"]:
-
-                new.append(
-
-                    st.session_state.cargo[index]
-
-                )
-
-
-        st.session_state.cargo = new
-
+        st.session_state.solution = None
 
         st.rerun()
 
@@ -312,31 +312,10 @@ else:
 
 
 # ==========================================================
-# CLEAR
-# ==========================================================
-
-
-if st.button(
-
-    "🧹 Clear all cargo"
-
-):
-
-    st.session_state.cargo = []
-
-    st.session_state.solution = None
-
-    st.rerun()
-
-
-
-# ==========================================================
 # OPTIMIZE
 # ==========================================================
 
-
 st.divider()
-
 
 
 if st.button(
@@ -348,12 +327,12 @@ if st.button(
 ):
 
 
-    if not st.session_state.cargo:
+    if len(st.session_state.cargo) == 0:
 
 
         st.warning(
 
-            "Add cargo first"
+            "Please add cargo first."
 
         )
 
@@ -363,7 +342,7 @@ if st.button(
 
         with st.spinner(
 
-            "Optimizing..."
+            "Calculating loading solutions..."
 
         ):
 
@@ -378,10 +357,10 @@ if st.button(
 
 
 
+
 # ==========================================================
 # RESULTS
 # ==========================================================
-
 
 if st.session_state.solution:
 
@@ -389,22 +368,19 @@ if st.session_state.solution:
     result = st.session_state.solution
 
 
-
     st.divider()
 
 
+    # ---------------------------------------------
+    # Select solution
+    # ---------------------------------------------
 
-    # ------------------------------------------
-    # choose solution
-    # ------------------------------------------
-
-
-    options = []
+    solutions = []
 
 
     if result.best:
 
-        options.append(
+        solutions.append(
 
             "🥇 Best solution"
 
@@ -413,54 +389,69 @@ if st.session_state.solution:
 
     if result.second_best:
 
-        options.append(
+        solutions.append(
 
-            "🥈 Second best solution"
+            "🥈 Alternative solution"
 
         )
 
 
-
-    selected = st.radio(
-
-        "Choose loading plan",
-
-        options
-
-    )
+    if solutions:
 
 
+        selected = st.radio(
 
-    if selected.startswith(
+            "Loading plan",
 
-        "🥇"
+            solutions
 
-    ):
+        )
 
-        layout, axle_report = result.best
+
+        if selected.startswith("🥇"):
+
+            layout, axle_report = result.best
+
+
+        else:
+
+            layout, axle_report = result.second_best
 
 
 
     else:
 
-        layout, axle_report = result.second_best
+
+        st.error(
+
+            "No solution generated."
+
+        )
+
+        st.stop()
 
 
 
-    # ------------------------------------------
-    # columns
-    # ------------------------------------------
+    # ---------------------------------------------
+    # Display
+    # ---------------------------------------------
 
 
-    left,right = st.columns(
+    col_visual, col_report = st.columns(
 
-        [1,1]
+        [0.8, 1.2]
 
     )
 
 
+    with col_visual:
 
-    with left:
+
+        st.subheader(
+
+            "Trailer layout"
+
+        )
 
 
         st.pyplot(
@@ -471,13 +462,22 @@ if st.session_state.solution:
 
                 layout
 
-            )
+            ),
+
+            use_container_width=False
 
         )
 
 
 
-    with right:
+    with col_report:
+
+
+        st.subheader(
+
+            "Load report"
+
+        )
 
 
         st.markdown(
@@ -511,3 +511,11 @@ if st.session_state.solution:
             )
 
         )
+
+
+
+st.caption(
+
+    "Optimizer priority: legality → axle balance → height → weight → space efficiency"
+
+)
