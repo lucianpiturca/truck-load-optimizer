@@ -45,7 +45,7 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
 
     # ==================================================
-    # Trailer
+    # Trailer outline
     # ==================================================
 
     trailer = patches.Rectangle(
@@ -93,11 +93,8 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
         rect = patches.Rectangle(
 
             (
-
                 pallet.x,
-
                 visual_y
-
             ),
 
             pallet.width,
@@ -109,28 +106,28 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
             edgecolor="black",
 
             facecolor=get_colour(
-
                 pallet.description
-
             ),
 
             alpha=0.85
 
         )
 
-
         ax.add_patch(rect)
+
 
 
         ax.text(
 
-            pallet.x + pallet.width/2,
+            pallet.x + pallet.width / 2,
 
-            visual_y + pallet.length/2,
+            visual_y + pallet.length / 2,
 
-            f"#{pallet.id}\n"
-            f"{int(pallet.width*100)}x"
-            f"{int(pallet.length*100)}",
+            (
+                f"#{pallet.id}\n"
+                f"{int(pallet.width*100)}x"
+                f"{int(pallet.length*100)}"
+            ),
 
             ha="center",
 
@@ -147,7 +144,7 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
 
     # ==================================================
-    # Meter lines
+    # Metre guide lines
     # ==================================================
 
     for metre in range(
@@ -165,19 +162,13 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
         ax.plot(
 
             [
-
                 0,
-
                 truck.trailer_width
-
             ],
 
             [
-
                 visual_y,
-
                 visual_y
-
             ],
 
             linestyle=":",
@@ -191,7 +182,7 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
         ax.text(
 
-            -0.15,
+            -0.12,
 
             visual_y,
 
@@ -201,7 +192,7 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
             va="center",
 
-            fontsize=7,
+            fontsize=6,
 
             color="#888888"
 
@@ -210,14 +201,14 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
 
     # ==================================================
-    # Direction labels
+    # Front / Back labels
     # ==================================================
 
     ax.text(
 
-        truck.trailer_width/2,
+        truck.trailer_width / 2,
 
-        truck.trailer_length + 0.45,
+        truck.trailer_length + 0.12,
 
         "🚛 FRONT (Kingpin)",
 
@@ -234,9 +225,9 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
     ax.text(
 
-        truck.trailer_width/2,
+        truck.trailer_width / 2,
 
-        -0.55,
+        -0.12,
 
         "BACK (Doors)",
 
@@ -253,23 +244,23 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
 
     # ==================================================
-    # Layout
+    # Compact layout
     # ==================================================
 
     ax.set_xlim(
 
-        -0.6,
+        -0.45,
 
-        truck.trailer_width + 0.1
+        truck.trailer_width + 0.05
 
     )
 
 
     ax.set_ylim(
 
-        -0.9,
+        -0.35,
 
-        truck.trailer_length + 0.8
+        truck.trailer_length + 0.35
 
     )
 
@@ -281,10 +272,24 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
     )
 
 
-    ax.axis("off")
+    ax.axis(
+
+        "off"
+
+    )
 
 
-    fig.tight_layout()
+    fig.subplots_adjust(
+
+        left=0.15,
+
+        right=0.98,
+
+        top=0.97,
+
+        bottom=0.03
+
+    )
 
 
     return fig
