@@ -1,26 +1,28 @@
+# app.py
+
 import streamlit as st
 import pandas as pd
 
 
 from truck import TRUCKS
 
-from packing import pack_cargo
-
-from drawing import draw_trailer
-
-from axles import (
-    calculate_axle_loads,
-    check_axles,
-    calculate_gross_weight
-)
+from cargo import CargoItem
 
 from optimizer import optimize_load
 
+from drawing import draw_trailer
+
+from report import (
+    generate_axle_report,
+    generate_load_summary,
+    generate_rejected_report
+)
 
 
-# ---------------------------------
-# Page setup
-# ---------------------------------
+
+# ==========================================================
+# PAGE CONFIG
+# ==========================================================
 
 st.set_page_config(
 
@@ -31,19 +33,33 @@ st.set_page_config(
 )
 
 
-st.title(
-    "🚛 European Truck Load Optimizer"
-)
+st.title("🚛 Truck Load Optimizer")
 
 
 
-# ---------------------------------
-# Truck selection
-# ---------------------------------
+# ==========================================================
+# SESSION STATE
+# ==========================================================
+
+if "cargo" not in st.session_state:
+
+    st.session_state.cargo = []
+
+
+if "solution" not in st.session_state:
+
+    st.session_state.solution = None
+
+
+
+# ==========================================================
+# TRUCK SELECT
+# ==========================================================
+
 
 truck_name = st.sidebar.selectbox(
 
-    "Truck Type",
+    "Truck type",
 
     list(TRUCKS.keys())
 
@@ -54,95 +70,78 @@ truck = TRUCKS[truck_name]
 
 
 
-st.sidebar.header(
-    "Trailer Information"
+st.sidebar.info(
+
+    f"""
+{truck.name}
+
+Inside:
+{truck.trailer_width:.2f} m ×
+{truck.trailer_length:.2f} m
+
+Legal gross:
+{truck.legal_gross/1000:.0f} tons
+"""
+
 )
 
 
-st.sidebar.write(
-    f"Length: {truck.trailer_length:.2f} m"
-)
 
-st.sidebar.write(
-    f"Width: {truck.trailer_width:.2f} m"
-)
+# ==========================================================
+# ADD CARGO
+# ==========================================================
 
-st.sidebar.write(
-    f"Legal GVW: {truck.legal_gross:,} kg"
-)
+st.subheader("📦 Add Cargo")
 
 
 
-# ---------------------------------
-# Cargo input
-# ---------------------------------
-
-st.subheader(
-    "📦 Add Cargo"
-)
-
-
-if "cargo" not in st.session_state:
-
-    st.session_state.cargo = pd.DataFrame(
-
-        columns=[
-
-            "Goods Description",
-            "Pallet Quantity",
-            "Width (cm)",
-            "Length (cm)",
-            "Height (cm)",
-            "Weight (kg)",
-            "Allow Rotation"
-
-        ]
-
-    )
-
-
-
-with st.form(
-    "cargo_form"
-):
+with st.form("cargo_form"):
 
 
     col1, col2, col3 = st.columns(3)
 
 
+
     with col1:
 
-
         description = st.text_input(
-            "Goods Description"
+
+            "Goods description"
+
         )
 
 
         quantity = st.number_input(
 
-            "Pallet Quantity",
+            "Pallet quantity",
 
             min_value=1,
 
-            value=1,
-
-            step=1
+            value=1
 
         )
 
 
-    with col2:
 
+        weight = st.number_input(
+
+            "Weight per pallet (kg)",
+
+            min_value=1,
+
+            value=1000
+
+        )
+
+
+
+    with col2:
 
         width = st.number_input(
 
             "Width (cm)",
 
-            min_value=1,
-
-            value=120,
-
-            step=1
+            value=120
 
         )
 
@@ -151,11 +150,7 @@ with st.form(
 
             "Length (cm)",
 
-            min_value=1,
-
-            value=80,
-
-            step=1
+            value=100
 
         )
 
@@ -167,38 +162,22 @@ with st.form(
 
             "Height (cm)",
 
-            min_value=1,
-
-            value=240,
-
-            step=1
+            value=240
 
         )
 
 
-        weight = st.number_input(
+        rotation = st.checkbox(
 
-            "Weight (kg)",
+            "Allow rotation",
 
-            min_value=1,
-
-            value=1000,
-
-            step=1
+            value=True
 
         )
 
 
-    rotation = st.checkbox(
 
-        "Allow Rotation",
-
-        value=True
-
-    )
-
-
-    submitted = st.form_submit_button(
+    add = st.form_submit_button(
 
         "➕ Add Cargo"
 
@@ -206,150 +185,85 @@ with st.form(
 
 
 
-if submitted:
+    if add:
 
 
-    new_row = pd.DataFrame(
+        st.session_state.cargo.append(
 
-        [
+            CargoItem(
 
-            {
+                description=description,
 
-                "Goods Description":
-                    description,
+                quantity=int(quantity),
 
-                "Pallet Quantity":
-                    quantity,
+                width=width/100,
 
-                "Width (cm)":
-                    width,
+                length=length/100,
 
-                "Length (cm)":
-                    length,
+                height=height/100,
 
-                "Height (cm)":
-                    height,
+                weight=float(weight),
 
-                "Weight (kg)":
-                    weight,
+                allow_rotation=rotation
 
-                "Allow Rotation":
-                    rotation
+            )
 
-            }
+        )
 
-        ]
 
-    )
+        st.success(
 
+            "Cargo added"
 
-    st.session_state.cargo = pd.concat(
+        )
 
-        [
 
-            st.session_state.cargo,
 
-            new_row
+# ==========================================================
+# CARGO TABLE
+# ==========================================================
 
-        ],
 
-        ignore_index=True
+st.subheader("Current Cargo")
 
-    )
 
 
+if st.session_state.cargo:
 
-st.subheader(
-    "Current Cargo"
-)
 
+    table = pd.DataFrame([
 
-st.dataframe(
+        {
 
-    st.session_state.cargo,
+            "Delete": False,
 
-    hide_index=True,
+            "Description": c.description,
 
-    use_container_width=True
+            "Qty": c.quantity,
 
-)
+            "Width cm": int(c.width*100),
 
+            "Length cm": int(c.length*100),
 
+            "Height cm": int(c.height*100),
 
-# ---------------------------------
-# Optimize
-# ---------------------------------
+            "Weight kg": c.weight,
 
-st.info(
+            "Rotation": c.allow_rotation
 
-    "Optimization priority: "
-    "Legal axles → Maximum legal cargo → "
-    "Height → Space efficiency"
+        }
 
-)
+        for c in st.session_state.cargo
 
+    ])
 
 
-if st.button(
 
-    "🚀 Optimize Load"
+    edited = st.data_editor(
 
-):
+        table,
 
-
-    pallets, rejected = optimize_load(
-
-        truck,
-
-        st.session_state.cargo
-
-    )
-
-
-    st.session_state.pallets = pallets
-
-    st.session_state.rejected = rejected
-
-
-
-# ---------------------------------
-# Display results
-# ---------------------------------
-
-if "pallets" in st.session_state and st.session_state.pallets:
-
-
-    pallets = st.session_state.pallets
-
-
-    rejected = st.session_state.rejected
-
-
-
-    # -----------------------------
-    # Drawing
-    # -----------------------------
-
-
-    st.subheader(
-
-        "📐 Trailer Layout"
-
-    )
-
-
-    fig, used_length, free_length = draw_trailer(
-
-        truck,
-
-        pallets
-
-    )
-
-
-    st.pyplot(
-
-        fig,
+        hide_index=True,
 
         use_container_width=True
 
@@ -357,138 +271,89 @@ if "pallets" in st.session_state and st.session_state.pallets:
 
 
 
-    # -----------------------------
-    # Space
-    # -----------------------------
+    if st.button(
+
+        "🗑 Delete Selected"
+
+    ):
 
 
-    st.subheader(
-
-        "📏 Trailer Utilization"
-
-    )
+        new = []
 
 
-    c1, c2, c3 = st.columns(3)
+        for index,row in edited.iterrows():
 
 
-    c1.metric(
+            if not row["Delete"]:
 
-        "Used Length",
+                new.append(
 
-        f"{used_length:.2f} m"
+                    st.session_state.cargo[index]
 
-    )
-
-
-    c2.metric(
-
-        "Free Length",
-
-        f"{free_length:.2f} m"
-
-    )
+                )
 
 
-    c3.metric(
+        st.session_state.cargo = new
 
-        "Utilization",
 
-        f"{used_length/truck.trailer_length*100:.1f}%"
+        st.rerun()
+
+
+
+else:
+
+
+    st.info(
+
+        "No cargo added"
 
     )
 
 
 
-    # -----------------------------
-    # Axles
-    # -----------------------------
+# ==========================================================
+# CLEAR
+# ==========================================================
 
 
-    st.subheader(
+if st.button(
 
-        "⚖️ Axle Weight Report"
+    "🧹 Clear all cargo"
 
-    )
+):
 
+    st.session_state.cargo = []
 
-    axle_loads = calculate_axle_loads(
+    st.session_state.solution = None
 
-        truck,
-
-        pallets
-
-    )
-
-
-    axle_results = check_axles(
-
-        truck,
-
-        axle_loads
-
-    )
-
-
-    for i, axle in enumerate(axle_results):
-
-
-        text = (
-
-            f"Axle {i+1}: "
-
-            f"{axle['weight']:,.0f} kg / "
-
-            f"{axle['limit']:,.0f} kg"
-
-        )
-
-
-        if axle["legal"]:
-
-            st.success(
-
-                "🟢 " + text
-
-            )
-
-        else:
-
-            st.error(
-
-                "🔴 " + text + " OVERWEIGHT"
-
-            )
+    st.rerun()
 
 
 
-    # -----------------------------
-    # Gross weight
-    # -----------------------------
+# ==========================================================
+# OPTIMIZE
+# ==========================================================
 
 
-    gross = calculate_gross_weight(
-
-        axle_loads
-
-    )
+st.divider()
 
 
-    st.subheader(
 
-        "🚛 Total Weight"
+if st.button(
 
-    )
+    "🚀 Optimize Load",
+
+    type="primary"
+
+):
 
 
-    if gross <= truck.legal_gross:
+    if not st.session_state.cargo:
 
 
-        st.success(
+        st.warning(
 
-            f"🟢 Total: {gross:,.0f} kg / "
-
-            f"{truck.legal_gross:,.0f} kg"
+            "Add cargo first"
 
         )
 
@@ -496,47 +361,153 @@ if "pallets" in st.session_state and st.session_state.pallets:
     else:
 
 
-        st.error(
+        with st.spinner(
 
-            f"🔴 Total: {gross:,.0f} kg / "
+            "Optimizing..."
 
-            f"{truck.legal_gross:,.0f} kg"
-
-        )
+        ):
 
 
+            st.session_state.solution = optimize_load(
 
-    # -----------------------------
-    # Rejected cargo
-    # -----------------------------
+                truck,
 
-
-    if rejected:
-
-
-        st.subheader(
-
-            "⚠️ Cargo Not Loaded"
-
-        )
-
-
-        for item in rejected:
-
-
-            st.warning(
-
-                f"{item['pallet']['Goods Description']} - "
-
-                f"{item['reason']}"
+                st.session_state.cargo
 
             )
 
+
+
+# ==========================================================
+# RESULTS
+# ==========================================================
+
+
+if st.session_state.solution:
+
+
+    result = st.session_state.solution
+
+
+
+    st.divider()
+
+
+
+    # ------------------------------------------
+    # choose solution
+    # ------------------------------------------
+
+
+    options = []
+
+
+    if result.best:
+
+        options.append(
+
+            "🥇 Best solution"
+
+        )
+
+
+    if result.second_best:
+
+        options.append(
+
+            "🥈 Second best solution"
+
+        )
+
+
+
+    selected = st.radio(
+
+        "Choose loading plan",
+
+        options
+
+    )
+
+
+
+    if selected.startswith(
+
+        "🥇"
+
+    ):
+
+        layout, axle_report = result.best
+
+
+
     else:
 
+        layout, axle_report = result.second_best
 
-        st.success(
 
-            "✅ All pallets loaded"
+
+    # ------------------------------------------
+    # columns
+    # ------------------------------------------
+
+
+    left,right = st.columns(
+
+        [1,1]
+
+    )
+
+
+
+    with left:
+
+
+        st.pyplot(
+
+            draw_trailer(
+
+                truck,
+
+                layout
+
+            )
+
+        )
+
+
+
+    with right:
+
+
+        st.markdown(
+
+            generate_load_summary(
+
+                layout
+
+            )
+
+        )
+
+
+        st.markdown(
+
+            generate_axle_report(
+
+                axle_report
+
+            )
+
+        )
+
+
+        st.markdown(
+
+            generate_rejected_report(
+
+                result.rejected
+
+            )
 
         )

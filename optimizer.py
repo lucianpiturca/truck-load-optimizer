@@ -1,151 +1,381 @@
-from packing import pack_cargo
+# optimizer.py
+
+from typing import List
+
+from cargo import CargoItem, Pallet, expand_manifest
+
+from packing import (
+    pack_pallets,
+    LayoutResult
+)
+
 from axles import (
-    calculate_axle_loads,
-    check_axles,
-    calculate_gross_weight
+    calculate_axle_weights,
+    axle_score,
+    is_legal
 )
 
 
+# ==========================================================
+# OPTIMIZATION RESULT
+# ==========================================================
 
-def pallet_weight(pallet):
 
-    return pallet.get(
-        "weight",
-        0
+class OptimizationResult:
+
+    def __init__(
+
+        self,
+
+        best,
+
+        second_best,
+
+        rejected
+
+    ):
+
+        self.best = best
+
+        self.second_best = second_best
+
+        self.rejected = rejected
+
+
+
+# ==========================================================
+# INTERNAL SCORING
+# ==========================================================
+
+
+def layout_score(
+
+    layout,
+
+    axle_report
+
+):
+
+    """
+    Overall solution score.
+
+    Higher = better.
+
+    Priorities:
+
+    1. Legal axles
+    2. More pallets loaded
+    3. Height priority
+    4. Less wasted space
+    """
+
+
+
+    score = 0
+
+
+
+    # --------------------------
+    # Axle legality
+    # --------------------------
+
+    score += axle_score(
+
+        axle_report
+
     )
 
 
 
-def legal_axles(truck, pallets):
+    # --------------------------
+    # Number of pallets
+    # --------------------------
 
-    axle_loads = calculate_axle_loads(
+    score += (
+
+        len(layout.pallets)
+
+        *
+
+        20
+
+    )
+
+
+
+    # --------------------------
+    # Height priority
+    # --------------------------
+
+    total_height = sum(
+
+        pallet.height
+
+        for pallet in layout.pallets
+
+    )
+
+
+    score += (
+
+        total_height
+
+        *
+
+        0.01
+
+    )
+
+
+
+    # --------------------------
+    # Space efficiency
+    # --------------------------
+
+    score += (
+
+        layout.utilisation
+
+        *
+
+        50
+
+    )
+
+
+
+    return round(
+
+        score,
+
+        2
+
+    )
+
+
+
+# ==========================================================
+# TRY ONE SOLUTION
+# ==========================================================
+
+
+def create_solution(
+
+    truck,
+
+    pallets
+
+):
+
+
+    layout = pack_pallets(
+
         truck,
+
         pallets
+
     )
 
 
-    results = check_axles(
+
+    report = calculate_axle_weights(
 
         truck,
 
-        axle_loads
-
-    )
-
-
-    return all(
-
-        axle["legal"]
-
-        for axle in results
+        layout.pallets
 
     )
 
 
 
-def optimize_load(truck, manifest):
+    layout.score = layout_score(
+
+        layout,
+
+        report
+
+    )
+
+
+    return layout, report
+
+
+
+# ==========================================================
+# MAIN OPTIMIZER
+# ==========================================================
+
+
+def optimize_load(
+
+    truck,
+
+    cargo_items: List[CargoItem]
+
+):
+
 
     """
-    Loads maximum legal cargo.
+    Generate possible loading solutions.
 
-    Priority:
+    Returns:
 
-    1. Keep axle weights legal
-    2. Keep total weight legal
-    3. Use available space
-    4. Prefer taller pallets first
+    best solution
+
+    second best solution
+
+    rejected cargo
 
     """
 
 
-    loaded = []
+
+    all_pallets = expand_manifest(
+
+        cargo_items
+
+    )
+
+
+
+    solutions = []
+
+
 
     rejected = []
 
 
 
-    if manifest.empty:
-
-        return loaded
-
-
-
-    # ---------------------------------
-    # Expand pallet quantities
-    # ---------------------------------
-
-    pallet_list = []
+    # ------------------------------------------------------
+    # Different sorting strategies
+    #
+    # Later we can increase this to hundreds
+    # of combinations.
+    # ------------------------------------------------------
 
 
+    strategies = [
 
-    for _, row in manifest.iterrows():
+
+        # Height first
+
+        sorted(
+
+            all_pallets,
+
+            key=lambda p:
+
+                p.height,
+
+            reverse=True
+
+        ),
 
 
-        try:
 
-            quantity = int(
-                row["Pallet Quantity"]
+        # Weight first
+
+        sorted(
+
+            all_pallets,
+
+            key=lambda p:
+
+                p.weight,
+
+            reverse=True
+
+        ),
+
+
+
+        # Area first
+
+        sorted(
+
+            all_pallets,
+
+            key=lambda p:
+
+                p.width * p.length,
+
+            reverse=True
+
+        )
+
+    ]
+
+
+
+    for strategy in strategies:
+
+
+
+        # Make copies
+
+        pallets = [
+
+            Pallet(
+
+                id=p.id,
+
+                description=p.description,
+
+                width=p.width,
+
+                length=p.length,
+
+                height=p.height,
+
+                weight=p.weight,
+
+                allow_rotation=p.allow_rotation
+
             )
 
-        except:
+            for p in strategy
 
-            continue
-
-
-
-        for i in range(quantity):
+        ]
 
 
-            pallet_list.append(
 
-                {
+        layout, report = create_solution(
 
-                    "Goods Description":
-                        row["Goods Description"],
+            truck,
 
+            pallets
 
-                    "Width (cm)":
-                        row["Width (cm)"],
+        )
 
 
-                    "Length (cm)":
-                        row["Length (cm)"],
+
+        if len(layout.pallets) > 0:
 
 
-                    "Height (cm)":
-                        row["Height (cm)"],
+            solutions.append(
 
+                (
 
-                    "Weight (kg)":
-                        row["Weight (kg)"],
+                    layout,
 
+                    report
 
-                    "Allow Rotation":
-                        row["Allow Rotation"],
-
-
-                }
+                )
 
             )
 
 
 
-    # ---------------------------------
-    # Priority:
-    # height first, weight second
-    # ---------------------------------
+    # ------------------------------------------------------
+    # Sort solutions
+    # ------------------------------------------------------
 
-    pallet_list.sort(
+
+    solutions.sort(
 
         key=lambda x:
 
-        (
-
-            x["Height (cm)"],
-
-            -x["Weight (kg)"]
-
-        ),
+            x[0].score,
 
         reverse=True
 
@@ -153,209 +383,81 @@ def optimize_load(truck, manifest):
 
 
 
-    current_manifest = []
+    # ------------------------------------------------------
+    # Best and second best
+    # ------------------------------------------------------
+
+
+    best = None
+
+    second = None
 
 
 
-    for pallet in pallet_list:
+    if len(solutions) >= 1:
 
-
-        test_manifest = current_manifest + [pallet]
-
-
-
-        df = manifest_from_list(
-
-            test_manifest
-
-        )
+        best = solutions[0]
 
 
 
-        layout = pack_cargo(
+    if len(solutions) >= 2:
 
-            truck,
-
-            df
-
-        )
+        second = solutions[1]
 
 
 
-        # remove pallets that do not fit physically
+    # ------------------------------------------------------
+    # Find rejected pallets
+    # ------------------------------------------------------
 
-        layout = [
 
-            p for p in layout
+    if best:
 
-            if p["length"] > 0
+
+        loaded_ids = [
+
+            p.id
+
+            for p in best[0].pallets
 
         ]
 
 
 
-        # Check space
+        for pallet in all_pallets:
 
-        if len(layout) < len(test_manifest):
 
+            if pallet.id not in loaded_ids:
 
-            rejected.append(
 
-                {
+                pallet.reject_reason = (
 
-                    "pallet": pallet,
+                    "Could not fit legally"
 
-                    "reason":
+                )
 
-                    "No trailer space available"
 
-                }
+                rejected.append(
 
-            )
+                    pallet
 
+                )
 
-            continue
 
 
+    else:
 
-        # Check weight
 
-        gross = calculate_gross_weight(
+        rejected = all_pallets
 
-            calculate_axle_loads(
 
-                truck,
 
-                layout
+    return OptimizationResult(
 
-            )
+        best,
 
-        )
+        second,
 
-
-
-        if gross > truck.legal_gross:
-
-
-            rejected.append(
-
-                {
-
-                    "pallet": pallet,
-
-                    "reason":
-
-                    "Maximum legal gross weight exceeded"
-
-                }
-
-            )
-
-
-            continue
-
-
-
-# Axle check temporarily disabled
-# until realistic axle model is installed
-
-
-        # Accept pallet
-
-        current_manifest.append(
-
-            pallet
-
-        )
-
-
-    # ---------------------------------
-    # Final packing
-    # ---------------------------------
-
-    final_df = manifest_from_list(
-
-        current_manifest
-
-    )
-
-
-    loaded = pack_cargo(
-
-        truck,
-
-        final_df
-
-    )
-
-
-    loaded = [
-
-        p for p in loaded
-
-        if p["length"] > 0
-
-    ]
-
-
-
-    print("DEBUG loaded pallets:", len(loaded))
-    print("DEBUG rejected pallets:", len(rejected))
-
-    return loaded, rejected
-
-
-
-
-
-def manifest_from_list(items):
-
-    """
-    Converts internal pallet list
-    back into optimizer dataframe.
-    """
-
-    import pandas as pd
-
-
-
-    return pd.DataFrame(
-
-        [
-
-            {
-
-                "Goods Description":
-                    p["Goods Description"],
-
-
-                "Pallet Quantity":
-                    1,
-
-
-                "Width (cm)":
-                    p["Width (cm)"],
-
-
-                "Length (cm)":
-                    p["Length (cm)"],
-
-
-                "Height (cm)":
-                    p["Height (cm)"],
-
-
-                "Weight (kg)":
-                    p["Weight (kg)"],
-
-
-                "Allow Rotation":
-                    p["Allow Rotation"]
-
-            }
-
-            for p in items
-
-        ]
+        rejected
 
     )
