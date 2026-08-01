@@ -41,17 +41,15 @@ def draw_trailer(
 ):
 
 
-    # smaller visualization
-
     fig, ax = plt.subplots(
 
-        figsize=(3.2, 5)
+        figsize=(2.8, 4.5)
 
     )
 
 
     # ==================================================
-    # Trailer outline
+    # Trailer
     # ==================================================
 
     trailer = patches.Rectangle(
@@ -62,54 +60,58 @@ def draw_trailer(
 
         truck.trailer_length,
 
-        linewidth=2,
+        linewidth=1.8,
 
         edgecolor="black",
 
-        facecolor="#fafafa"
+        facecolor="#f8f8f8"
 
     )
+
 
     ax.add_patch(trailer)
 
 
 
     # ==================================================
-    # FRONT / BACK labels
+    # FRONT / BACK
+    #
+    # y=0 = FRONT
+    # y=max = BACK
     # ==================================================
 
     ax.text(
 
         truck.trailer_width / 2,
 
-        truck.trailer_length + 0.35,
+        -0.25,
 
-        "🚛 FRONT\n(kingpin)",
-
-        ha="center",
-
-        va="bottom",
-
-        fontsize=8,
-
-        weight="bold"
-
-    )
-
-
-    ax.text(
-
-        truck.trailer_width / 2,
-
-        -0.35,
-
-        "BACK\n(doors)",
+        "🚛 FRONT\nKingpin",
 
         ha="center",
 
         va="top",
 
-        fontsize=8,
+        fontsize=7,
+
+        weight="bold"
+
+    )
+
+
+    ax.text(
+
+        truck.trailer_width / 2,
+
+        truck.trailer_length + 0.25,
+
+        "BACK\nDoors",
+
+        ha="center",
+
+        va="bottom",
+
+        fontsize=7,
 
         weight="bold"
 
@@ -118,7 +120,7 @@ def draw_trailer(
 
 
     # ==================================================
-    # metre lines + outside labels
+    # Meter grid
     # ==================================================
 
     for metre in range(
@@ -144,9 +146,9 @@ def draw_trailer(
 
             linestyle=":",
 
-            linewidth=0.7,
+            linewidth=0.6,
 
-            color="#d0d0d0"
+            color="#d2d2d2"
 
         )
 
@@ -163,7 +165,7 @@ def draw_trailer(
 
             va="center",
 
-            fontsize=6,
+            fontsize=5,
 
             color="#888888"
 
@@ -199,7 +201,7 @@ def draw_trailer(
 
             pallet.length,
 
-            linewidth=1,
+            linewidth=0.8,
 
             edgecolor="black",
 
@@ -237,7 +239,7 @@ def draw_trailer(
 
             va="center",
 
-            fontsize=3,
+            fontsize=2.5,
 
             color="white",
 
@@ -248,23 +250,23 @@ def draw_trailer(
 
 
     # ==================================================
-    # Layout
+    # Size control
     # ==================================================
 
     ax.set_xlim(
 
-        -0.55,
+        -0.45,
 
-        truck.trailer_width + 0.1
+        truck.trailer_width + 0.05
 
     )
 
 
     ax.set_ylim(
 
-        -0.7,
+        -0.55,
 
-        truck.trailer_length + 0.7
+        truck.trailer_length + 0.55
 
     )
 
@@ -283,7 +285,17 @@ def draw_trailer(
     )
 
 
-    plt.tight_layout()
+    fig.subplots_adjust(
+
+        left=0.20,
+
+        right=0.98,
+
+        top=0.92,
+
+        bottom=0.08
+
+    )
 
 
     return fig
@@ -307,7 +319,7 @@ def draw_two_solutions(
 
         2,
 
-        figsize=(7,5)
+        figsize=(6,4.5)
 
     )
 
@@ -331,13 +343,12 @@ def draw_two_solutions(
 
             edgecolor="black",
 
-            facecolor="#fafafa"
+            facecolor="#f8f8f8"
 
         )
 
 
         ax.add_patch(trailer)
-
 
 
         for pallet in layout.pallets:
@@ -359,13 +370,13 @@ def draw_two_solutions(
 
                     pallet.length,
 
+                    edgecolor="black",
+
                     facecolor=get_colour(
 
                         pallet.description
 
-                    ),
-
-                    edgecolor="black"
+                    )
 
                 )
 
@@ -376,17 +387,17 @@ def draw_two_solutions(
 
         ax.set_xlim(
 
-            -0.2,
+            0,
 
-            truck.trailer_width + 0.2
+            truck.trailer_width
 
         )
 
         ax.set_ylim(
 
-            -0.2,
+            0,
 
-            truck.trailer_length + 0.2
+            truck.trailer_length
 
         )
 
@@ -397,9 +408,6 @@ def draw_two_solutions(
         )
 
         ax.axis("off")
-
-
-    plt.tight_layout()
 
 
     return fig
