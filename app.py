@@ -414,6 +414,32 @@ if st.session_state.solution:
     st.divider()
 
 
+    if result.best is None:
+
+        st.error(
+            "❌ No legal loading solution found."
+        )
+
+
+        if result.rejected:
+
+            st.warning(
+                "Cargo that could not be loaded:"
+            )
+
+
+            for item in result.rejected:
+
+                st.write(
+                    f"- {item.get('description','Cargo')}: "
+                    f"{item.get('reason','No legal position')}"
+                )
+
+
+        st.stop()
+
+
+
     layout = result.best[0]
 
 
