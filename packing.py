@@ -27,6 +27,7 @@ class Pallet:
 
     rotated: bool = False
 
+    loaded: bool = True
 
 
 @dataclass
