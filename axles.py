@@ -1,131 +1,91 @@
 # axles.py
 
 from dataclasses import dataclass
-from typing import List
-
-from cargo import Pallet
-from truck import Truck
-
-
-
-# ==========================================================
-# RESULT STRUCTURES
-# ==========================================================
-
-@dataclass
-class AxleResult:
-
-    axle_number: int
-
-    weight: float
-
-    limit: float
-
-    overloaded: bool
 
 
 
 @dataclass
 class AxleReport:
 
-    axles: List[AxleResult]
+    axles: list
 
     total_weight: float
 
-    legal_total: bool
-
-    centre_of_gravity: float
-
-
-
-    @property
-    def legal_axles(self):
-
-        return all(
-
-            not axle.overloaded
-
-            for axle in self.axles
-
-        )
-
 
 
 # ==========================================================
-# AXLE CALCULATION
+# European 4x2 tractor + 3 axle semi-trailer model
 # ==========================================================
+
+TRACTOR_TARE_FRONT = 6000     # kg on steering axle
+TRACTOR_TARE_REAR = 5000      # kg on drive axle
+
+TRAILER_TARE_TOTAL = 7000     # kg
+
+TRAILER_AXLE_SHARE = [
+    0.33,
+    0.33,
+    0.34
+]
+
+
+# distances from kingpin (metres)
+
+DRIVE_AXLE_POSITION = -3.0
+
+TRAILER_AXLE_POSITIONS = [
+    9.8,
+    11.0,
+    12.2
+]
+
 
 
 def calculate_axle_weights(
 
-    truck: Truck,
+    truck,
 
-    pallets: List[Pallet]
+    pallets
 
 ):
 
-    """
-    Calculate final axle weights.
 
-    European semi-trailer model:
+    #
+    # Start with empty vehicle
+    #
 
-    Tractor:
-        Axle 1 steering
-        Axle 2 drive
+    axle_weights = [
 
-    Trailer:
-        Axles 3-4-5 bogie
+        float(TRACTOR_TARE_FRONT),
 
+        float(TRACTOR_TARE_REAR),
 
-    Cargo position affects:
-        - kingpin load
-        - trailer bogie load
+        float(TRAILER_TARE_TOTAL * 0.33),
 
-    """
+        float(TRAILER_TARE_TOTAL * 0.33),
 
+        float(TRAILER_TARE_TOTAL * 0.34)
 
-
-    # Start with empty truck
-
-    axle_weights = list(
-
-        truck.empty_axles
-
-    )
+    ]
 
 
 
-    total_cargo_weight = sum(
-
-        pallet.weight
-
-        for pallet in pallets
-
-        if pallet.loaded
-
-    )
-
-
-
-    trailer_load = 0
-
-    kingpin_load = 0
-
-
-
-    weighted_position = 0
-
-
-
-    # ------------------------------------------------------
-    # Cargo distribution
-    # ------------------------------------------------------
-
+    #
+    # Add pallet loads
+    #
 
     for pallet in pallets:
 
 
-        if not pallet.loaded:
+        if not getattr(
+
+            pallet,
+
+            "loaded",
+
+            True
+
+        ):
 
             continue
 
@@ -135,8 +95,9 @@ def calculate_axle_weights(
 
 
 
+        #
         # pallet centre position
-        # measured from trailer front
+        #
 
         pallet_position = (
 
@@ -150,185 +111,110 @@ def calculate_axle_weights(
 
 
 
-        weighted_position += (
-
-            pallet_position
-
-            *
-
-            weight
-
-        )
-
-
-
-        # convert to distance from kingpin
-
-        distance_from_kingpin = (
-
-            pallet_position
-
-            -
-
-            truck.trailer_front_offset
-
-        )
-
-
-
-        if distance_from_kingpin < 0:
-
-            distance_from_kingpin = 0
-
-
-
-        if distance_from_kingpin > truck.trailer_length:
-
-            distance_from_kingpin = truck.trailer_length
-
-
-
-        # --------------------------------------------------
-        # Load transfer model
         #
-        # Front pallets:
-        # more kingpin
+        # load split
         #
-        # Rear pallets:
-        # more trailer axles
-        # --------------------------------------------------
+        # Front of trailer:
+        # more tractor load
+        #
+        # Rear:
+        # more trailer load
+        #
 
 
-        kingpin_ratio = (
-
-            0.55
-
-            -
-
-            (
-
-                distance_from_kingpin
-
-                /
-
-                truck.trailer_length
-
-            )
-
-            *
-
-            0.20
-
-        )
+        if pallet_position <= 4:
 
 
+            tractor_share = 0.35
 
-        kingpin_ratio = max(
 
-            0.35,
+        elif pallet_position <= 8:
 
-            min(
 
-                0.55,
+            tractor_share = 0.20
 
-                kingpin_ratio
 
-            )
+        else:
 
-        )
+
+            tractor_share = 0.10
 
 
 
-        kingpin_load += (
+        trailer_share = 1 - tractor_share
+
+
+
+        #
+        # Tractor distribution
+        #
+
+        axle_weights[0] += (
 
             weight
 
             *
 
-            kingpin_ratio
+            tractor_share
+
+            *
+
+            0.35
 
         )
 
 
-
-        trailer_load += (
+        axle_weights[1] += (
 
             weight
 
             *
 
-            (
+            tractor_share
 
-                1
+            *
 
-                -
+            0.65
 
-                kingpin_ratio
+        )
+
+
+
+        #
+        # Trailer axle group
+        #
+
+        trailer_weight = (
+
+            weight
+
+            *
+
+            trailer_share
+
+        )
+
+
+        for i, share in enumerate(
+
+            TRAILER_AXLE_SHARE
+
+        ):
+
+
+            axle_weights[i+2] += (
+
+                trailer_weight
+
+                *
+
+                share
 
             )
 
-        )
 
 
-
-    # ------------------------------------------------------
-    # Tractor distribution
-    # ------------------------------------------------------
-
-    axle_weights[0] += (
-
-        kingpin_load
-
-        *
-
-        0.10
-
-    )
-
-
-    axle_weights[1] += (
-
-        kingpin_load
-
-        *
-
-        0.90
-
-    )
-
-
-
-    # ------------------------------------------------------
-    # Trailer bogie
-    # ------------------------------------------------------
-
-    axle_weights[2] += trailer_load / 3
-
-    axle_weights[3] += trailer_load / 3
-
-    axle_weights[4] += trailer_load / 3
-
-
-
-    # ------------------------------------------------------
-    # Centre of gravity
-    # ------------------------------------------------------
-
-    if total_cargo_weight > 0:
-
-        centre_of_gravity = (
-
-            weighted_position
-
-            /
-
-            total_cargo_weight
-
-        )
-
-    else:
-
-        centre_of_gravity = 0
+    total = sum(axle_weights)
 
 
 
@@ -336,145 +222,18 @@ def calculate_axle_weights(
 
         axles=[
 
-            AxleResult(
+            round(x,0)
 
-                axle_number=i+1,
-
-                weight=round(
-
-                    axle_weights[i],
-
-                    1
-
-                ),
-
-                limit=truck.axle_limits[i],
-
-                overloaded=(
-
-                    axle_weights[i]
-
-                    >
-
-                    truck.axle_limits[i]
-
-                )
-
-            )
-
-            for i in range(5)
+            for x in axle_weights
 
         ],
 
         total_weight=round(
 
-            sum(axle_weights),
+            total,
 
-            1
-
-        ),
-
-        legal_total=(
-
-            sum(axle_weights)
-
-            <=
-
-            truck.legal_gross
-
-        ),
-
-        centre_of_gravity=round(
-
-            centre_of_gravity,
-
-            2
+            0
 
         )
-
-    )
-
-
-
-# ==========================================================
-# HELPER FUNCTIONS
-# ==========================================================
-
-
-def is_legal(report: AxleReport):
-
-    return (
-
-        report.legal_axles
-
-        and
-
-        report.legal_total
-
-    )
-
-
-
-def axle_score(report: AxleReport):
-
-    """
-
-    Score used later by optimizer.
-
-    Higher = better.
-
-    """
-
-    score = 100
-
-
-
-    for axle in report.axles:
-
-        usage = (
-
-            axle.weight
-
-            /
-
-            axle.limit
-
-        )
-
-
-
-        if usage > 1:
-
-            score -= (
-
-                usage - 1
-
-            ) * 200
-
-
-
-        else:
-
-            # reward balanced loading
-
-            score -= abs(
-
-                0.75 - usage
-
-            ) * 10
-
-
-
-    if not report.legal_total:
-
-        score -= 200
-
-
-
-    return round(
-
-        score,
-
-        2
 
     )
