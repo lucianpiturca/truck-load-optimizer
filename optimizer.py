@@ -34,7 +34,6 @@ def expand_cargo(cargo):
 
         for _ in range(item.quantity):
 
-
             pallets.append(
 
                 Pallet(
@@ -57,7 +56,6 @@ def expand_cargo(cargo):
 
             )
 
-
             pallet_id += 1
 
 
@@ -65,58 +63,51 @@ def expand_cargo(cargo):
 
 
 
-def generate_orientations(pallet):
+def stability_score(layout):
+
+    rows = {}
 
 
-    result = []
+    for pallet in layout.pallets:
+
+        y = round(pallet.y, 1)
+
+        rows[y] = rows.get(y, 0) + 1
 
 
-    result.append(
-
-        (
-            pallet.width,
-
-            pallet.length
-
-        )
-
-    )
+    score = 0
 
 
-    if pallet.allow_rotation and pallet.width != pallet.length:
+    for count in rows.values():
+
+        if count == 3:
+
+            score += 100
+
+        elif count == 2:
+
+            score += 50
 
 
-        result.append(
-
-            (
-
-                pallet.length,
-
-                pallet.width
-
-            )
-
-        )
-
-
-    return result
+    return score
 
 
 
-def total_weight(layout):
+def calculate_score(layout):
 
+    return (
 
-    return sum(
+        len(layout.pallets) * 10000
 
-        p.weight
+        +
 
-        for p in layout.pallets
+        stability_score(layout)
 
     )
 
 
 
-def legal_solution(
+def is_legal(
 
     truck,
 
@@ -125,107 +116,34 @@ def legal_solution(
 ):
 
 
-    axle = calculate_axle_weights(
+    axle_report = calculate_axle_weights(
 
         truck,
 
-        layout
+        layout.pallets
 
     )
 
 
-    if axle.total_weight > truck.legal_gross:
+    if axle_report.total_weight > truck.legal_gross:
 
-        return False, axle
+        return False, axle_report
 
 
-    for value, limit in zip(
+    for axle, limit in zip(
 
-        axle.axles,
+        axle_report.axles,
 
         truck.axle_limits
 
     ):
 
+        if axle > limit:
 
-        if value > limit:
-
-            return False, axle
-
-
-    return True, axle
+            return False, axle_report
 
 
-
-def stability_score(layout):
-
-
-    score = 0
-
-
-    # reward compact rows
-
-    rows = {}
-
-
-    for pallet in layout.pallets:
-
-
-        key = round(
-
-            pallet.y,
-
-            2
-
-        )
-
-
-        rows[key] = rows.get(
-
-            key,
-
-            0
-
-        ) + 1
-
-
-
-    for count in rows.values():
-
-
-        if count == 3:
-
-            score += 100
-
-
-        elif count == 2:
-
-            score += 50
-
-
-
-    return score
-
-
-
-def solution_score(
-
-    layout,
-
-    stability
-
-):
-
-
-    return (
-
-        len(layout.pallets) * 10000
-
-        +
-
-        stability
-
-    )
+    return True, axle_report
 
 
 
@@ -241,16 +159,13 @@ def optimize_load(
     pallets = expand_cargo(cargo)
 
 
-
     candidates = []
 
     rejected = []
 
 
 
-    #
-    # Try normal packing first
-    #
+    # Prefer 3-wide layout first
 
     patterns = [
 
@@ -265,17 +180,6 @@ def optimize_load(
     for pattern in patterns:
 
 
-        for pallet in pallets:
-
-
-            pallet.orientations = generate_orientations(
-
-                pallet
-
-            )
-
-
-
         layout = pack_pallets(
 
             truck,
@@ -287,14 +191,13 @@ def optimize_load(
         )
 
 
-
         if layout is None:
 
             continue
 
 
 
-        legal, axle = legal_solution(
+        legal, axle_report = is_legal(
 
             truck,
 
@@ -308,21 +211,21 @@ def optimize_load(
 
             candidates.append(
 
-                (
+                {
 
-                    solution_score(
+                    "score":
 
-                        layout,
+                    calculate_score(layout),
 
-                        stability_score(layout)
-
-                    ),
+                    "layout":
 
                     layout,
 
-                    axle
+                    "axles":
 
-                )
+                    axle_report
+
+                }
 
             )
 
@@ -330,24 +233,27 @@ def optimize_load(
         else:
 
 
-            for pallet in pallets:
+            rejected.append(
+
+                {
+
+                    "description":
+
+                    "Cargo",
+
+                    "reason":
+
+                    "Axle or gross weight exceeded"
+
+                }
+
+            )
 
 
-                rejected.append(
 
-                    {
+        for item in layout.rejected:
 
-                        "description":
-
-                        pallet.description,
-
-                        "reason":
-
-                        "Axle or gross weight exceeded"
-
-                    }
-
-                )
+            rejected.append(item)
 
 
 
@@ -368,7 +274,7 @@ def optimize_load(
 
     candidates.sort(
 
-        key=lambda x:x[0],
+        key=lambda x:x["score"],
 
         reverse=True
 
@@ -379,12 +285,15 @@ def optimize_load(
     best = candidates[0]
 
 
-    second = None
+    second = (
 
+        candidates[1]
 
-    if len(candidates) > 1:
+        if len(candidates) > 1
 
-        second = candidates[1]
+        else None
+
+    )
 
 
 
@@ -392,17 +301,17 @@ def optimize_load(
 
         best=(
 
-            best[1],
+            best["layout"],
 
-            best[2]
+            best["axles"]
 
         ),
 
         second_best=(
 
-            second[1],
+            second["layout"],
 
-            second[2]
+            second["axles"]
 
         )
 
