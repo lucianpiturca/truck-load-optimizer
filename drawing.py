@@ -9,7 +9,7 @@ from truck import Truck
 
 COLOUR_MAP = {}
 
-DEFAULT_COLOURS = [
+COLORS = [
     "#4CAF50",
     "#2196F3",
     "#FF9800",
@@ -24,8 +24,8 @@ def get_colour(description):
 
     if description not in COLOUR_MAP:
 
-        COLOUR_MAP[description] = DEFAULT_COLOURS[
-            len(COLOUR_MAP) % len(DEFAULT_COLOURS)
+        COLOUR_MAP[description] = COLORS[
+            len(COLOUR_MAP) % len(COLORS)
         ]
 
     return COLOUR_MAP[description]
@@ -40,18 +40,19 @@ def draw_trailer(
 
 ):
 
+
     # smaller visualization
 
     fig, ax = plt.subplots(
 
-        figsize=(4.2, 7)
+        figsize=(3.2, 5)
 
     )
 
 
-    # --------------------------------------------------
-    # Trailer body
-    # --------------------------------------------------
+    # ==================================================
+    # Trailer outline
+    # ==================================================
 
     trailer = patches.Rectangle(
 
@@ -69,14 +70,56 @@ def draw_trailer(
 
     )
 
-
     ax.add_patch(trailer)
 
 
 
-    # --------------------------------------------------
-    # Meter guide lines
-    # --------------------------------------------------
+    # ==================================================
+    # FRONT / BACK labels
+    # ==================================================
+
+    ax.text(
+
+        truck.trailer_width / 2,
+
+        truck.trailer_length + 0.35,
+
+        "🚛 FRONT\n(kingpin)",
+
+        ha="center",
+
+        va="bottom",
+
+        fontsize=8,
+
+        weight="bold"
+
+    )
+
+
+    ax.text(
+
+        truck.trailer_width / 2,
+
+        -0.35,
+
+        "BACK\n(doors)",
+
+        ha="center",
+
+        va="top",
+
+        fontsize=8,
+
+        weight="bold"
+
+    )
+
+
+
+    # ==================================================
+    # metre lines + outside labels
+    # ==================================================
 
     for metre in range(
 
@@ -85,6 +128,7 @@ def draw_trailer(
         int(truck.trailer_length) + 1
 
     ):
+
 
         ax.plot(
 
@@ -102,12 +146,10 @@ def draw_trailer(
 
             linewidth=0.7,
 
-            color="#d5d5d5"
+            color="#d0d0d0"
 
         )
 
-
-        # outside label
 
         ax.text(
 
@@ -121,7 +163,7 @@ def draw_trailer(
 
             va="center",
 
-            fontsize=7,
+            fontsize=6,
 
             color="#888888"
 
@@ -129,50 +171,9 @@ def draw_trailer(
 
 
 
-    # --------------------------------------------------
-    # FRONT / BACK
-    #
-    # y=0 is front of trailer
-    # --------------------------------------------------
-
-    ax.text(
-
-        truck.trailer_width / 2,
-
-        truck.trailer_length + 0.35,
-
-        "🚛 FRONT\n(kingpin)",
-
-        ha="center",
-
-        fontsize=9,
-
-        weight="bold"
-
-    )
-
-
-    ax.text(
-
-        truck.trailer_width / 2,
-
-        -0.45,
-
-        "BACK\n(doors)",
-
-        ha="center",
-
-        fontsize=9,
-
-        weight="bold"
-
-    )
-
-
-
-    # --------------------------------------------------
+    # ==================================================
     # Pallets
-    # --------------------------------------------------
+    # ==================================================
 
     for pallet in layout.pallets:
 
@@ -204,7 +205,7 @@ def draw_trailer(
 
             facecolor=colour,
 
-            alpha=0.8
+            alpha=0.85
 
         )
 
@@ -213,15 +214,11 @@ def draw_trailer(
 
 
 
-        # compact pallet label
-
         label = (
 
             f"#{pallet.id}\n"
 
-            f"{pallet.description}\n"
-
-            f"{int(pallet.width*100)}×"
+            f"{int(pallet.width*100)}x"
 
             f"{int(pallet.length*100)}"
 
@@ -240,7 +237,7 @@ def draw_trailer(
 
             va="center",
 
-            fontsize=3.8,
+            fontsize=3,
 
             color="white",
 
@@ -250,30 +247,24 @@ def draw_trailer(
 
 
 
-    # --------------------------------------------------
-    # Orientation correction:
-    #
-    # Put front at top visually
-    # --------------------------------------------------
-
-    ax.invert_yaxis()
-
-
+    # ==================================================
+    # Layout
+    # ==================================================
 
     ax.set_xlim(
 
-        -0.6,
+        -0.55,
 
-        truck.trailer_width + 0.2
+        truck.trailer_width + 0.1
 
     )
 
 
     ax.set_ylim(
 
-        truck.trailer_length + 0.8,
+        -0.7,
 
-        -0.8
+        truck.trailer_length + 0.7
 
     )
 
@@ -316,7 +307,7 @@ def draw_two_solutions(
 
         2,
 
-        figsize=(8,7)
+        figsize=(7,5)
 
     )
 
@@ -385,17 +376,17 @@ def draw_two_solutions(
 
         ax.set_xlim(
 
-            0,
+            -0.2,
 
-            truck.trailer_width
+            truck.trailer_width + 0.2
 
         )
 
         ax.set_ylim(
 
-            truck.trailer_length,
+            -0.2,
 
-            0
+            truck.trailer_length + 0.2
 
         )
 
@@ -409,5 +400,6 @@ def draw_two_solutions(
 
 
     plt.tight_layout()
+
 
     return fig
