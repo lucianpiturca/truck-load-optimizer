@@ -1,543 +1,350 @@
 # packing.py
 
-from dataclasses import dataclass
-from typing import List, Optional
-
-from cargo import Pallet
-from truck import Truck
+from dataclasses import dataclass, field
 
 
-# ==========================================================
-# FREE SPACE
-# ==========================================================
 
 @dataclass
-class FreeRectangle:
-    """
-    Empty rectangular area inside trailer floor.
+class Pallet:
 
-    Coordinates:
-    x = across trailer width
-    y = trailer length direction
-    """
+    id: int
 
-    x: float
-    y: float
-
-    width: float
-    length: float
-
-
-    @property
-    def area(self):
-        return self.width * self.length
-
-
-
-# ==========================================================
-# PALLET PLACEMENT OPTION
-# ==========================================================
-
-@dataclass
-class Placement:
-
-    rectangle: FreeRectangle
+    description: str
 
     width: float
 
     length: float
 
-    rotated: bool
+    height: float
 
-    score: float
+    weight: float
+
+    allow_rotation: bool = True
+
+    x: float = 0
+
+    y: float = 0
+
+    rotated: bool = False
 
 
-
-# ==========================================================
-# COMPLETE LAYOUT RESULT
-# ==========================================================
 
 @dataclass
 class LayoutResult:
 
-    pallets: List[Pallet]
+    pallets: list = field(default_factory=list)
 
-    used_length: float
-
-    free_length: float
-
-    utilisation: float
-
-    score: float = 0
+    rejected: list = field(default_factory=list)
 
 
 
-# ==========================================================
-# PACKING ENGINE
-# ==========================================================
+def possible_orientations(pallet):
 
-class PackingEngine:
+    orientations = [
 
-
-    def __init__(self, truck: Truck):
-
-        self.truck = truck
-
-        self.reset()
-
-
-
-    # ------------------------------------------------------
-
-    def reset(self):
-
-        """
-        Start with entire trailer floor available.
-        """
-
-        self.free_spaces = [
-
-            FreeRectangle(
-
-                x=0,
-
-                y=0,
-
-                width=self.truck.trailer_width,
-
-                length=self.truck.trailer_length
-
-            )
-
-        ]
-
-
-        self.loaded_pallets = []
-
-
-
-    # ------------------------------------------------------
-
-    def can_place(
-        self,
-        rectangle,
-        width,
-        length
-    ):
-
-        return (
-
-            width <= rectangle.width
-
-            and
-
-            length <= rectangle.length
-
+        (
+            pallet.width,
+            pallet.length,
+            False
         )
 
+    ]
 
 
-    # ------------------------------------------------------
+    if pallet.allow_rotation and pallet.width != pallet.length:
 
-    def find_best_position(
-        self,
-        pallet: Pallet
-    ) -> Optional[Placement]:
-
-        """
-        Search every available rectangle.
-
-        Try:
-
-        1. normal pallet orientation
-
-        2. rotated orientation
-
-        Select lowest wasted space.
-        """
-
-
-        best = None
-
-
-
-        for space in self.free_spaces:
-
-
-
-            # -----------------------------
-            # Normal orientation
-            # -----------------------------
-
-            if self.can_place(
-
-                space,
-
-                pallet.width,
-
-                pallet.length
-
-            ):
-
-
-                waste = (
-
-                    space.area
-
-                    -
-
-                    pallet.width * pallet.length
-
-                )
-
-
-                candidate = Placement(
-
-                    rectangle=space,
-
-                    width=pallet.width,
-
-                    length=pallet.length,
-
-                    rotated=False,
-
-                    score=waste
-
-                )
-
-
-                if (
-
-                    best is None
-
-                    or
-
-                    candidate.score < best.score
-
-                ):
-
-                    best = candidate
-
-
-
-            # -----------------------------
-            # Rotated orientation
-            # -----------------------------
-
-            if pallet.allow_rotation:
-
-
-                if self.can_place(
-
-                    space,
-
-                    pallet.length,
-
-                    pallet.width
-
-                ):
-
-
-                    waste = (
-
-                        space.area
-
-                        -
-
-                        pallet.width * pallet.length
-
-                    )
-
-
-                    candidate = Placement(
-
-                        rectangle=space,
-
-                        width=pallet.length,
-
-                        length=pallet.width,
-
-                        rotated=True,
-
-                        score=waste
-
-                    )
-
-
-                    if (
-
-                        best is None
-
-                        or
-
-                        candidate.score < best.score
-
-                    ):
-
-                        best = candidate
-
-
-
-        return best
-
-
-
-    # ------------------------------------------------------
-
-    def split_space(
-        self,
-        used_space: FreeRectangle,
-        pallet_width,
-        pallet_length
-    ):
-
-        """
-        Split remaining area after pallet placement.
-        """
-
-
-        self.free_spaces.remove(
-            used_space
-        )
-
-
-        # Space to the right
-
-        right_width = (
-
-            used_space.width
-
-            -
-
-            pallet_width
-
-        )
-
-
-        if right_width > 0:
-
-
-            self.free_spaces.append(
-
-                FreeRectangle(
-
-                    x=
-
-                    used_space.x + pallet_width,
-
-                    y=
-
-                    used_space.y,
-
-                    width=
-
-                    right_width,
-
-                    length=
-
-                    pallet_length
-
-                )
-
-            )
-
-
-
-        # Space behind pallet
-
-        back_length = (
-
-            used_space.length
-
-            -
-
-            pallet_length
-
-        )
-
-
-        if back_length > 0:
-
-
-            self.free_spaces.append(
-
-                FreeRectangle(
-
-                    x=
-
-                    used_space.x,
-
-                    y=
-
-                    used_space.y + pallet_length,
-
-                    width=
-
-                    used_space.width,
-
-                    length=
-
-                    back_length
-
-                )
-
-            )
-
-
-
-    # ------------------------------------------------------
-
-    def place_pallet(
-        self,
-        pallet: Pallet
-    ):
-
-
-        placement = self.find_best_position(
-            pallet
-        )
-
-
-        if placement is None:
-
-            return False
-
-
-
-        if placement.rotated:
-
-            pallet.width, pallet.length = (
-
-                pallet.length,
-
-                pallet.width
-
-            )
-
-
-            pallet.rotated = True
-
-
-
-        pallet.x = placement.rectangle.x
-
-        pallet.y = placement.rectangle.y
-
-        pallet.loaded = True
-
-
-
-        self.loaded_pallets.append(
-            pallet
-        )
-
-
-        self.split_space(
-
-            placement.rectangle,
-
-            placement.width,
-
-            placement.length
-
-        )
-
-
-        return True
-
-
-
-    # ------------------------------------------------------
-
-    def get_used_length(self):
-
-
-        if not self.loaded_pallets:
-
-            return 0
-
-
-
-        return max(
-
-            pallet.y + pallet.length
-
-            for pallet in self.loaded_pallets
-
-        )
-
-
-
-    # ------------------------------------------------------
-
-    def get_result(self):
-
-
-        used = self.get_used_length()
-
-
-        return LayoutResult(
-
-            pallets=self.loaded_pallets,
-
-            used_length=used,
-
-            free_length=max(
-
-                0,
-
-                self.truck.trailer_length - used
-
-            ),
-
-            utilisation=sum(
-
-                p.width * p.length
-
-                for p in self.loaded_pallets
-
-            )
-
-            /
+        orientations.append(
 
             (
-
-                self.truck.trailer_width
-
-                *
-
-                self.truck.trailer_length
-
+                pallet.length,
+                pallet.width,
+                True
             )
 
         )
 
 
-
-# ==========================================================
-# PUBLIC FUNCTION
-# ==========================================================
+    return orientations
 
 
-def pack_pallets(
 
-    truck: Truck,
+def can_place(
 
-    pallets: List[Pallet]
+    x,
+
+    y,
+
+    width,
+
+    length,
+
+    placed,
+
+    trailer_width,
+
+    trailer_length
 
 ):
 
 
-    engine = PackingEngine(
-        truck
-    )
+    # trailer limits
+
+    if x + width > trailer_width:
+
+        return False
+
+
+    if y + length > trailer_length:
+
+        return False
+
+
+
+    # collision check
+
+    for p in placed:
+
+
+        if not (
+
+            x + width <= p.x
+
+            or
+
+            p.x + p.width <= x
+
+            or
+
+            y + length <= p.y
+
+            or
+
+            p.y + p.length <= y
+
+        ):
+
+            return False
+
+
+    return True
+
+
+
+def pack_pallets(
+
+    truck,
+
+    pallets,
+
+    pattern="three"
+
+):
+
+
+    placed = []
+
+    rejected = []
+
+
+
+    # ==================================================
+    # determine row width preference
+    # ==================================================
+
+    if pattern == "three":
+
+        # search narrow side first
+
+        orientations_order = [
+
+            "narrow"
+
+        ]
+
+
+    else:
+
+        orientations_order = [
+
+            "wide"
+
+        ]
+
+
+
+    current_y = 0
+
+
+
+    row_height = None
+
 
 
     for pallet in pallets:
 
-        engine.place_pallet(
-            pallet
-        )
+
+        fitted = False
 
 
-    return engine.get_result()
+
+        for width, length, rotated in possible_orientations(pallet):
+
+
+            # pattern preference
+
+            if pattern == "three":
+
+                # prefer 80 cm side across
+
+                if width > length:
+
+                    continue
+
+
+            elif pattern == "two":
+
+                # prefer 120 cm side across
+
+                if width < length:
+
+                    continue
+
+
+
+            x_positions = []
+
+
+            # left to right search
+
+            x = 0
+
+
+            while x <= truck.trailer_width - width:
+
+
+                x_positions.append(x)
+
+                x += 0.01
+
+
+
+            # front to back search
+
+            for y in [
+
+                round(i * 0.01,2)
+
+                for i in range(
+
+                    int(truck.trailer_length*100)+1
+
+                )
+
+            ]:
+
+
+                for x in x_positions:
+
+
+                    if can_place(
+
+                        x,
+
+                        y,
+
+                        width,
+
+                        length,
+
+                        placed,
+
+                        truck.trailer_width,
+
+                        truck.trailer_length
+
+                    ):
+
+
+                        new_pallet = Pallet(
+
+                            id=pallet.id,
+
+                            description=pallet.description,
+
+                            width=width,
+
+                            length=length,
+
+                            height=pallet.height,
+
+                            weight=pallet.weight,
+
+                            allow_rotation=pallet.allow_rotation,
+
+                            x=x,
+
+                            y=y,
+
+                            rotated=rotated
+
+                        )
+
+
+                        placed.append(
+
+                            new_pallet
+
+                        )
+
+
+                        fitted = True
+
+
+                        break
+
+
+
+                if fitted:
+
+                    break
+
+
+
+            if fitted:
+
+                break
+
+
+
+        if not fitted:
+
+
+            rejected.append(
+
+                {
+
+                    "description":
+
+                    pallet.description,
+
+                    "id":
+
+                    pallet.id,
+
+                    "reason":
+
+                    "Could not fit physically"
+
+                }
+
+            )
+
+
+
+    return LayoutResult(
+
+        pallets=placed,
+
+        rejected=rejected
+
+    )
