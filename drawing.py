@@ -23,6 +23,7 @@ COLORS = [
 def get_colour(description):
 
     if description not in COLOUR_MAP:
+
         COLOUR_MAP[description] = COLORS[
             len(COLOUR_MAP) % len(COLORS)
         ]
@@ -43,7 +44,9 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
     )
 
 
-    # trailer
+    # ==================================================
+    # Trailer
+    # ==================================================
 
     trailer = patches.Rectangle(
 
@@ -65,12 +68,9 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
 
 
-    # --------------------------------------------------
-    # Draw pallets
-    #
-    # IMPORTANT:
-    # packing coordinates are flipped visually
-    # --------------------------------------------------
+    # ==================================================
+    # Pallets
+    # ==================================================
 
     for pallet in layout.pallets:
 
@@ -146,9 +146,9 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
 
 
-    # --------------------------------------------------
-    # metre lines
-    # --------------------------------------------------
+    # ==================================================
+    # Meter lines
+    # ==================================================
 
     for metre in range(
 
@@ -209,21 +209,23 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
 
 
-    # --------------------------------------------------
-    # labels
-    # --------------------------------------------------
+    # ==================================================
+    # Direction labels
+    # ==================================================
 
     ax.text(
 
         truck.trailer_width/2,
 
-        truck.trailer_length + 0.3,
+        truck.trailer_length + 0.45,
 
-        "🚛 FRONT\nKingpin",
+        "🚛 FRONT (Kingpin)",
 
         ha="center",
 
-        fontsize=9,
+        va="bottom",
+
+        fontsize=8,
 
         weight="bold"
 
@@ -234,39 +236,49 @@ def draw_trailer(truck: Truck, layout: LayoutResult):
 
         truck.trailer_width/2,
 
-        -0.3,
+        -0.55,
 
-        "BACK\nDoors",
+        "BACK (Doors)",
 
         ha="center",
 
-        fontsize=9,
+        va="top",
+
+        fontsize=8,
 
         weight="bold"
 
     )
 
 
+
+    # ==================================================
+    # Layout
+    # ==================================================
 
     ax.set_xlim(
 
         -0.6,
 
-        truck.trailer_width+0.1
+        truck.trailer_width + 0.1
 
     )
 
 
     ax.set_ylim(
 
-        -0.6,
+        -0.9,
 
-        truck.trailer_length+0.6
+        truck.trailer_length + 0.8
 
     )
 
 
-    ax.set_aspect("equal")
+    ax.set_aspect(
+
+        "equal"
+
+    )
 
 
     ax.axis("off")
