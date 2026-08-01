@@ -3,8 +3,8 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-from packing import LayoutResult
 from truck import Truck
+from packing import LayoutResult
 
 
 COLOUR_MAP = {}
@@ -23,7 +23,6 @@ COLORS = [
 def get_colour(description):
 
     if description not in COLOUR_MAP:
-
         COLOUR_MAP[description] = COLORS[
             len(COLOUR_MAP) % len(COLORS)
         ]
@@ -32,31 +31,23 @@ def get_colour(description):
 
 
 
-def draw_trailer(
+def draw_trailer(truck: Truck, layout: LayoutResult):
 
-    truck: Truck,
 
-    layout: LayoutResult
-
-):
-
-    # High resolution figure
     fig, ax = plt.subplots(
 
-        figsize=(5, 10),
+        figsize=(5,10),
 
         dpi=150
 
     )
 
 
-    # ==================================================
-    # Trailer body
-    # ==================================================
+    # trailer
 
     trailer = patches.Rectangle(
 
-        (0, 0),
+        (0,0),
 
         truck.trailer_width,
 
@@ -74,111 +65,29 @@ def draw_trailer(
 
 
 
-    # ==================================================
-    # FRONT / BACK
+    # --------------------------------------------------
+    # Draw pallets
     #
-    # Current packing coordinates:
-    # y=0 = FRONT
-    # y=max = BACK
-    # ==================================================
-
-    ax.text(
-
-        truck.trailer_width / 2,
-
-        -0.25,
-
-        "🚛 FRONT\nKingpin",
-
-        ha="center",
-
-        va="top",
-
-        fontsize=9,
-
-        weight="bold"
-
-    )
-
-
-    ax.text(
-
-        truck.trailer_width / 2,
-
-        truck.trailer_length + 0.25,
-
-        "BACK\nDoors",
-
-        ha="center",
-
-        va="bottom",
-
-        fontsize=9,
-
-        weight="bold"
-
-    )
-
-
-
-    # ==================================================
-    # metre lines
-    # ==================================================
-
-    for metre in range(
-
-        1,
-
-        int(truck.trailer_length) + 1
-
-    ):
-
-        ax.plot(
-
-            [
-                0,
-                truck.trailer_width
-            ],
-
-            [
-                metre,
-                metre
-            ],
-
-            linestyle=":",
-
-            linewidth=0.7,
-
-            color="#cccccc"
-
-        )
-
-
-        ax.text(
-
-            -0.18,
-
-            metre,
-
-            f"{metre}m",
-
-            ha="right",
-
-            va="center",
-
-            fontsize=7,
-
-            color="#888888"
-
-        )
-
-
-
-    # ==================================================
-    # pallets
-    # ==================================================
+    # IMPORTANT:
+    # packing coordinates are flipped visually
+    # --------------------------------------------------
 
     for pallet in layout.pallets:
+
+
+        visual_y = (
+
+            truck.trailer_length
+
+            -
+
+            pallet.y
+
+            -
+
+            pallet.length
+
+        )
 
 
         rect = patches.Rectangle(
@@ -187,7 +96,7 @@ def draw_trailer(
 
                 pallet.x,
 
-                pallet.y
+                visual_y
 
             ),
 
@@ -213,27 +122,15 @@ def draw_trailer(
         ax.add_patch(rect)
 
 
-
-        # compact label
-
-        label = (
-
-            f"#{pallet.id}\n"
-
-            f"{int(pallet.width*100)}x"
-
-            f"{int(pallet.length*100)}"
-
-        )
-
-
         ax.text(
 
-            pallet.x + pallet.width / 2,
+            pallet.x + pallet.width/2,
 
-            pallet.y + pallet.length / 2,
+            visual_y + pallet.length/2,
 
-            label,
+            f"#{pallet.id}\n"
+            f"{int(pallet.width*100)}x"
+            f"{int(pallet.length*100)}",
 
             ha="center",
 
@@ -249,15 +146,113 @@ def draw_trailer(
 
 
 
-    # ==================================================
-    # layout
-    # ==================================================
+    # --------------------------------------------------
+    # metre lines
+    # --------------------------------------------------
+
+    for metre in range(
+
+        1,
+
+        int(truck.trailer_length)+1
+
+    ):
+
+
+        visual_y = truck.trailer_length - metre
+
+
+        ax.plot(
+
+            [
+
+                0,
+
+                truck.trailer_width
+
+            ],
+
+            [
+
+                visual_y,
+
+                visual_y
+
+            ],
+
+            linestyle=":",
+
+            linewidth=0.7,
+
+            color="#cccccc"
+
+        )
+
+
+        ax.text(
+
+            -0.15,
+
+            visual_y,
+
+            f"{metre}m",
+
+            ha="right",
+
+            va="center",
+
+            fontsize=7,
+
+            color="#888888"
+
+        )
+
+
+
+    # --------------------------------------------------
+    # labels
+    # --------------------------------------------------
+
+    ax.text(
+
+        truck.trailer_width/2,
+
+        truck.trailer_length + 0.3,
+
+        "🚛 FRONT\nKingpin",
+
+        ha="center",
+
+        fontsize=9,
+
+        weight="bold"
+
+    )
+
+
+    ax.text(
+
+        truck.trailer_width/2,
+
+        -0.3,
+
+        "BACK\nDoors",
+
+        ha="center",
+
+        fontsize=9,
+
+        weight="bold"
+
+    )
+
+
 
     ax.set_xlim(
 
         -0.6,
 
-        truck.trailer_width + 0.1
+        truck.trailer_width+0.1
 
     )
 
@@ -266,141 +261,18 @@ def draw_trailer(
 
         -0.6,
 
-        truck.trailer_length + 0.6
+        truck.trailer_length+0.6
 
     )
 
 
-    ax.set_aspect(
-
-        "equal"
-
-    )
+    ax.set_aspect("equal")
 
 
-    ax.axis(
-
-        "off"
-
-    )
+    ax.axis("off")
 
 
     fig.tight_layout()
 
-
-    return fig
-
-
-
-def draw_two_solutions(
-
-    truck,
-
-    first,
-
-    second
-
-):
-
-    fig, axes = plt.subplots(
-
-        1,
-
-        2,
-
-        figsize=(10,10),
-
-        dpi=120
-
-    )
-
-
-    for ax, layout, title in [
-
-        (axes[0], first, "Solution 1"),
-
-        (axes[1], second, "Solution 2")
-
-    ]:
-
-
-        trailer = patches.Rectangle(
-
-            (0,0),
-
-            truck.trailer_width,
-
-            truck.trailer_length,
-
-            edgecolor="black",
-
-            facecolor="#f8f8f8"
-
-        )
-
-
-        ax.add_patch(trailer)
-
-
-        for pallet in layout.pallets:
-
-
-            ax.add_patch(
-
-                patches.Rectangle(
-
-                    (
-
-                        pallet.x,
-
-                        pallet.y
-
-                    ),
-
-                    pallet.width,
-
-                    pallet.length,
-
-                    facecolor=get_colour(
-
-                        pallet.description
-
-                    ),
-
-                    edgecolor="black"
-
-                )
-
-            )
-
-
-        ax.set_title(title)
-
-        ax.set_xlim(
-
-            -0.2,
-
-            truck.trailer_width + 0.2
-
-        )
-
-        ax.set_ylim(
-
-            -0.2,
-
-            truck.trailer_length + 0.2
-
-        )
-
-        ax.set_aspect(
-
-            "equal"
-
-        )
-
-        ax.axis("off")
-
-
-    fig.tight_layout()
 
     return fig
