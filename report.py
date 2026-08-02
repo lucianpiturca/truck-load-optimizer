@@ -1,8 +1,5 @@
 # report.py
 # Truck Load Optimizer 2.0
-#
-# Reporting functions
-
 
 from optimizer import OptimizationResult
 from truck import Truck
@@ -10,40 +7,23 @@ from packing import Layout
 
 
 
-# ==========================================================
-# STATUS ICONS
-# ==========================================================
-
-
-def status_icon(
-    value,
-    limit
-):
+def status_icon(value, limit):
 
     if value <= limit:
-
         return "🟢"
 
     return "🔴"
 
 
 
-# ==========================================================
-# LOAD SUMMARY
-# ==========================================================
-
-
-def load_summary(
-    truck: Truck,
-    layout: Layout
-):
+def load_summary(truck, layout):
 
     if layout is None:
 
         return {
             "loaded": 0,
             "used_length": 0,
-            "free_length": truck.internal_length,
+            "free_length": truck.trailer_length,
             "utilisation": 0
         }
 
@@ -51,21 +31,11 @@ def load_summary(
     used = layout.used_length
 
 
-    free = (
-
-        truck.internal_length
-
-        -
-
-        used
-
-    )
+    free = truck.trailer_length - used
 
 
     if free < 0:
-
         free = 0
-
 
 
     utilisation = (
@@ -75,9 +45,9 @@ def load_summary(
         /
 
         (
-            truck.internal_length
+            truck.trailer_length
             *
-            truck.internal_width
+            truck.trailer_width
         )
 
         *
@@ -85,7 +55,6 @@ def load_summary(
         100
 
     )
-
 
 
     return {
@@ -102,11 +71,6 @@ def load_summary(
 
 
 
-# ==========================================================
-# STREAMLIT REPORT
-# ==========================================================
-
-
 def generate_report(
     result: OptimizationResult,
     truck: Truck
@@ -116,18 +80,11 @@ def generate_report(
     lines = []
 
 
-
-    # ------------------------------------------------------
-    # No solution
-    # ------------------------------------------------------
-
     if result.best is None:
 
 
         lines.append(
-
             "❌ No legal loading solution found."
-
         )
 
 
@@ -135,21 +92,16 @@ def generate_report(
 
 
             lines.append(
-
                 ""
-
             )
 
 
             lines.append(
-
                 "Cargo that could not be loaded:"
-
             )
 
 
             for pallet in result.rejected:
-
 
                 lines.append(
 
@@ -167,10 +119,6 @@ def generate_report(
 
 
 
-    # ------------------------------------------------------
-    # Load summary
-    # ------------------------------------------------------
-
     summary = load_summary(
 
         truck,
@@ -182,55 +130,43 @@ def generate_report(
 
 
     lines.append(
-
         "📦 Load Summary"
+    )
+
+
+    lines.append(
+
+        f"Loaded pallets: {summary['loaded']}"
 
     )
 
 
     lines.append(
 
-        f"Loaded pallets: "
-        f"{summary['loaded']}"
+        f"Trailer used: {summary['used_length']:.2f} m"
 
     )
 
 
     lines.append(
 
-        f"Trailer used: "
-        f"{summary['used_length']:.2f} m"
+        f"Trailer free: {summary['free_length']:.2f} m"
 
     )
 
 
     lines.append(
 
-        f"Trailer free: "
-        f"{summary['free_length']:.2f} m"
+        f"Floor utilisation: {summary['utilisation']:.1f} %"
 
     )
 
 
-    lines.append(
-
-        f"Floor utilisation: "
-        f"{summary['utilisation']:.1f} %"
-
-    )
-
-
-
-    # ------------------------------------------------------
-    # Axles
-    # ------------------------------------------------------
 
     lines.append("")
 
     lines.append(
-
         "⚖️ Axle Weight Report"
-
     )
 
 
@@ -242,14 +178,14 @@ def generate_report(
     if axle_report:
 
 
-        for index, weight in enumerate(
+        for i, weight in enumerate(
 
             axle_report.axle_weights
 
         ):
 
 
-            limit = truck.axle_limits[index]
+            limit = truck.axle_limits[i]
 
 
             icon = status_icon(
@@ -263,16 +199,14 @@ def generate_report(
 
             extra = ""
 
-
             if weight > limit:
 
                 extra = " OVERWEIGHT"
 
 
-
             lines.append(
 
-                f"{icon} Axle {index+1}: "
+                f"{icon} Axle {i+1}: "
                 f"{weight:,.0f} kg / "
                 f"{limit:,.0f} kg"
                 f"{extra}"
@@ -282,7 +216,6 @@ def generate_report(
 
 
         lines.append("")
-
 
         icon = status_icon(
 
@@ -295,7 +228,6 @@ def generate_report(
 
         extra = ""
 
-
         if axle_report.total_weight > truck.legal_gross:
 
             extra = " OVERWEIGHT"
@@ -303,9 +235,7 @@ def generate_report(
 
 
         lines.append(
-
             "🚛 Total Weight"
-
         )
 
 
@@ -331,10 +261,6 @@ def generate_report(
 
 
 
-    # ------------------------------------------------------
-    # Rejected cargo
-    # ------------------------------------------------------
-
     lines.append("")
 
 
@@ -358,7 +284,6 @@ def generate_report(
                 f"{pallet.reason_not_loaded}"
 
             )
-
 
 
     else:
