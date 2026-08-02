@@ -1,54 +1,104 @@
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class Truck:
     """
-    European articulated truck (tractor + semi-trailer)
+    Standard European articulated vehicle (tractor + semi-trailer)
     """
 
+    # Display
     name: str
+    colour: str
 
-    trailer_length: float      # metres
-    trailer_width: float       # metres
-    trailer_height: float      # metres
+    # Internal loading dimensions (metres)
+    internal_length: float
+    internal_width: float
+    internal_height: float
 
-    legal_gross: int           # kg
+    # Maximum permitted cargo height
+    max_cargo_height: float
 
-    empty_axles: list          # kg on axles 1-5
+    # Legal gross vehicle weight (kg)
+    legal_gross_weight: float
 
-    axle_limits: list          # kg on axles 1-5
+    # Empty axle weights (tractor with fuel + empty trailer)
+    # [Steer, Drive, Trailer1, Trailer2, Trailer3]
+    empty_axles: list[float]
 
-    wheelbase: float           # tractor axle1 -> axle2 (m)
+    # Legal axle limits
+    axle_limits: list[float]
 
-    kingpin_offset: float      # axle2 -> kingpin (m)
+    # ------------------------------------------------------------------
+    # Standard European trailer geometry
+    # ------------------------------------------------------------------
 
-    bogie_position: float      # kingpin -> trailer bogie centre (m)
+    # Front bulkhead -> kingpin
+    kingpin_to_front: float
 
-    trailer_front_offset: float  # trailer front -> kingpin (m)
+    # Kingpin -> centre of tridem bogie
+    kingpin_to_bogie: float
 
-    colour: str = "#d9d9d9"
+    # Centre of bogie -> rear doors
+    bogie_to_rear: float
+
+    # Tractor wheelbase
+    wheelbase: float
+
+    # ------------------------------------------------------------------
+    # Calculated properties
+    # ------------------------------------------------------------------
 
     @property
-    def empty_weight(self):
+    def trailer_length(self):
+        return self.internal_length
+
+    @property
+    def trailer_width(self):
+        return self.internal_width
+
+    @property
+    def trailer_height(self):
+        return self.internal_height
+
+    @property
+    def total_empty_weight(self):
         return sum(self.empty_axles)
 
     @property
     def payload_capacity(self):
-        return self.legal_gross - self.empty_weight
+        return self.legal_gross_weight - self.total_empty_weight
 
+    @property
+    def bogie_position_from_front(self):
+        """
+        Distance from front bulkhead to centre of tridem.
+        """
+        return self.kingpin_to_front + self.kingpin_to_bogie
+
+    @property
+    def rear_position(self):
+        return self.internal_length
+
+
+# ==========================================================
+# STANDARD EUROPEAN CURTAINSIDER
+# ==========================================================
 
 CURTAINSIDER = Truck(
 
     name="Curtainsider",
 
-    trailer_length=13.60,
-    trailer_width=2.48,
-    trailer_height=2.70,
+    colour="#efefef",
 
-    legal_gross=40000,
+    internal_length=13.62,
+    internal_width=2.48,
+    internal_height=2.70,
 
-    # Axles 1-5
+    max_cargo_height=2.70,
+
+    legal_gross_weight=40000,
+
     empty_axles=[
         5200,
         2800,
@@ -65,29 +115,32 @@ CURTAINSIDER = Truck(
         8000
     ],
 
-    # Standard European 4x2 tractor geometry
-    wheelbase=3.60,
-    kingpin_offset=0.90,
+    kingpin_to_front=1.60,
+    kingpin_to_bogie=7.60,
+    bogie_to_rear=4.42,
 
-    # Kingpin -> centre of trailer bogie
-    bogie_position=7.50,
-
-    # Trailer front -> kingpin
-    trailer_front_offset=1.80,
-
-    colour="#f2f2f2"
+    wheelbase=3.60
 )
 
 
+# ==========================================================
+# STANDARD EUROPEAN REFRIGERATED TRAILER
+# ==========================================================
+
 FRIGO = Truck(
 
-    name="Frigo",
+    name="Refrigerated",
 
-    trailer_length=13.40,
-    trailer_width=2.45,
-    trailer_height=2.60,
+    colour="#dceeff",
 
-    legal_gross=40000,
+    internal_length=13.41,
+    internal_width=2.45,
+    internal_height=2.60,
+
+    # 20 cm reserved for evaporator and air circulation
+    max_cargo_height=2.40,
+
+    legal_gross_weight=40000,
 
     empty_axles=[
         5400,
@@ -105,12 +158,11 @@ FRIGO = Truck(
         8000
     ],
 
-    wheelbase=3.60,
-    kingpin_offset=0.90,
-    bogie_position=7.50,
-    trailer_front_offset=1.80,
+    kingpin_to_front=1.60,
+    kingpin_to_bogie=7.60,
+    bogie_to_rear=4.21,
 
-    colour="#d8eefc"
+    wheelbase=3.60
 )
 
 
