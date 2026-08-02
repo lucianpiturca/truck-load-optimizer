@@ -13,9 +13,7 @@ from packing import Layout
 
 
 PALLET_COLOUR = "#9ecae1"
-
 PALLET_BORDER = "#1f4e79"
-
 GRID_COLOUR = "#d6d6d6"
 
 
@@ -25,15 +23,15 @@ def pallet_font_size(layout):
     count = layout.pallet_count
 
     if count <= 10:
-        return 12
+        return 14
 
     if count <= 20:
-        return 10
+        return 12
 
     if count <= 35:
-        return 8
+        return 11
 
-    return 6
+    return 9
 
 
 
@@ -50,11 +48,7 @@ def create_loading_figure(
 
 
 
-    # ------------------------------------------------------
-    # Trailer body
-    # FRONT = top
-    # BACK DOORS = bottom
-    # ------------------------------------------------------
+    # Trailer
 
     fig.add_shape(
 
@@ -82,18 +76,15 @@ def create_loading_figure(
 
 
 
-    # ------------------------------------------------------
-    # Internal metre grid
-    # ------------------------------------------------------
+    # metre grid
 
     for metre in range(
 
         1,
 
-        int(truck.trailer_length) + 1
+        int(truck.trailer_length)+1
 
     ):
-
 
         fig.add_shape(
 
@@ -121,12 +112,9 @@ def create_loading_figure(
 
 
 
-    # ------------------------------------------------------
-    # Pallets
-    # ------------------------------------------------------
+    # pallets
 
     font_size = pallet_font_size(layout)
-
 
 
     for pallet in layout.pallets:
@@ -168,7 +156,6 @@ def create_loading_figure(
         )
 
 
-
         fig.add_annotation(
 
             x=(x0+x1)/2,
@@ -207,15 +194,13 @@ def create_loading_figure(
 
 
 
-    # ------------------------------------------------------
-    # Direction labels
-    # ------------------------------------------------------
+    # labels
 
     fig.add_annotation(
 
-        x=truck.trailer_width / 2,
+        x=truck.trailer_width/2,
 
-        y=-0.15,
+        y=-0.18,
 
         text="FRONT",
 
@@ -223,21 +208,18 @@ def create_loading_figure(
 
         font=dict(
 
-            size=14,
-
-            color="black"
+            size=14
 
         )
 
     )
 
 
-
     fig.add_annotation(
 
-        x=truck.trailer_width / 2,
+        x=truck.trailer_width/2,
 
-        y=truck.trailer_length + 0.15,
+        y=truck.trailer_length+0.18,
 
         text="BACK DOORS",
 
@@ -245,9 +227,7 @@ def create_loading_figure(
 
         font=dict(
 
-            size=10,
-
-            color="black"
+            size=11
 
         )
 
@@ -255,9 +235,7 @@ def create_loading_figure(
 
 
 
-    # ------------------------------------------------------
-    # Length markers
-    # ------------------------------------------------------
+    # metre labels
 
     for metre in range(
 
@@ -267,10 +245,9 @@ def create_loading_figure(
 
     ):
 
-
         fig.add_annotation(
 
-            x=truck.trailer_width + 0.12,
+            x=truck.trailer_width+0.12,
 
             y=metre,
 
@@ -280,7 +257,7 @@ def create_loading_figure(
 
             font=dict(
 
-                size=9,
+                size=10,
 
                 color="#666666"
 
@@ -290,9 +267,7 @@ def create_loading_figure(
 
 
 
-    # ------------------------------------------------------
-    # Larger display area
-    # ------------------------------------------------------
+    # Keep correct proportions but enlarge display
 
     fig.update_xaxes(
 
@@ -302,7 +277,7 @@ def create_loading_figure(
 
             -0.25,
 
-            truck.trailer_width + 0.45
+            truck.trailer_width+0.45
 
         ]
 
@@ -315,35 +290,35 @@ def create_loading_figure(
 
         range=[
 
-            truck.trailer_length + 0.30,
+            truck.trailer_length+0.30,
 
             -0.30
 
-        ]
+        ],
+
+        scaleanchor="x",
+
+        scaleratio=1
 
     )
 
 
 
-    # ------------------------------------------------------
-    # Layout
-    # ------------------------------------------------------
-
     fig.update_layout(
 
-        height=1200,
+        height=1100,
 
-        width=800,
+        width=650,
 
         margin=dict(
 
-            l=10,
+            l=5,
 
-            r=10,
+            r=5,
 
-            t=15,
+            t=5,
 
-            b=15
+            b=5
 
         ),
 
