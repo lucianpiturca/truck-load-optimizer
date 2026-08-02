@@ -1,7 +1,6 @@
 # ==========================================================
 # drawing.py
 # Truck Load Optimizer
-#
 # Trailer visualisation
 # ==========================================================
 
@@ -14,7 +13,7 @@ from packing import Layout
 
 
 # ==========================================================
-# COLOUR
+# Colours
 # ==========================================================
 
 
@@ -22,37 +21,35 @@ PALLET_COLOUR = "#9ecae1"
 
 PALLET_BORDER = "#1f4e79"
 
-GRID_COLOUR = "#d0d0d0"
+GRID_COLOUR = "#d6d6d6"
 
 
 
 # ==========================================================
-# TEXT SIZE
+# Text sizing
 # ==========================================================
 
 
-def pallet_font_size(
-    layout: Layout
-):
+def pallet_font_size(layout):
 
     count = layout.pallet_count
 
 
     if count <= 10:
-        return 11
+        return 12
 
     if count <= 20:
-        return 9
+        return 10
 
     if count <= 35:
-        return 7
+        return 8
 
     return 6
 
 
 
 # ==========================================================
-# CREATE FIGURE
+# Main drawing function
 # ==========================================================
 
 
@@ -72,13 +69,11 @@ def create_loading_figure(
     # ------------------------------------------------------
     # Trailer outline
     #
-    # Coordinate system:
+    # FRONT = top
+    # BACK DOORS = bottom
     #
-    # x = width
-    # y = length
-    #
-    # FRONT = y=0
-    # BACK = maximum length
+    # y=0 front
+    # y=max length rear
     # ------------------------------------------------------
 
 
@@ -160,7 +155,6 @@ def create_loading_figure(
     )
 
 
-
     for pallet in layout.pallets:
 
 
@@ -207,11 +201,11 @@ def create_loading_figure(
 
 
 
-        # keep text short enough
-
         label = (
 
-            f"{pallet.description}<br>"
+            f"{pallet.description}"
+
+            f"<br>"
 
             f"{int(pallet.length*100)}x"
 
@@ -231,12 +225,9 @@ def create_loading_figure(
 
             y=(y0+y1)/2,
 
-
             text=label,
 
-
             showarrow=False,
-
 
             font=dict(
 
@@ -246,7 +237,6 @@ def create_loading_figure(
 
             ),
 
-
             align="center"
 
         )
@@ -254,15 +244,15 @@ def create_loading_figure(
 
 
     # ------------------------------------------------------
-    # Front / Back labels
+    # Front label
     # ------------------------------------------------------
 
 
     fig.add_annotation(
 
-        x=truck.trailer_width/2,
+        x=truck.trailer_width / 2,
 
-        y=-0.35,
+        y=-0.18,
 
         text="FRONT",
 
@@ -270,29 +260,7 @@ def create_loading_figure(
 
         font=dict(
 
-            size=14,
-
-            color="black"
-
-        )
-
-    )
-
-
-
-    fig.add_annotation(
-
-        x=truck.trailer_width/2,
-
-        y=truck.trailer_length+0.35,
-
-        text="BACK DOORS",
-
-        showarrow=False,
-
-        font=dict(
-
-            size=12,
+            size=13,
 
             color="black"
 
@@ -303,7 +271,34 @@ def create_loading_figure(
 
 
     # ------------------------------------------------------
-    # External metre labels
+    # Back doors label
+    # ------------------------------------------------------
+
+
+    fig.add_annotation(
+
+        x=truck.trailer_width / 2,
+
+        y=truck.trailer_length + 0.18,
+
+        text="BACK DOORS",
+
+        showarrow=False,
+
+        font=dict(
+
+            size=10,
+
+            color="black"
+
+        )
+
+    )
+
+
+
+    # ------------------------------------------------------
+    # Metre labels outside right side
     # ------------------------------------------------------
 
 
@@ -318,7 +313,7 @@ def create_loading_figure(
 
         fig.add_annotation(
 
-            x=truck.trailer_width+0.12,
+            x=truck.trailer_width + 0.10,
 
             y=metre,
 
@@ -330,7 +325,7 @@ def create_loading_figure(
 
                 size=9,
 
-                color="grey"
+                color="#666666"
 
             )
 
@@ -339,7 +334,7 @@ def create_loading_figure(
 
 
     # ------------------------------------------------------
-    # Layout formatting
+    # Axes
     # ------------------------------------------------------
 
 
@@ -349,9 +344,9 @@ def create_loading_figure(
 
         range=[
 
-            -0.4,
+            -0.20,
 
-            truck.trailer_width+0.7
+            truck.trailer_width + 0.40
 
         ]
 
@@ -364,9 +359,9 @@ def create_loading_figure(
 
         range=[
 
-            truck.trailer_length+0.7,
+            truck.trailer_length + 0.35,
 
-            -0.7
+            -0.35
 
         ],
 
@@ -378,11 +373,16 @@ def create_loading_figure(
 
 
 
+    # ------------------------------------------------------
+    # Layout
+    # ------------------------------------------------------
+
+
     fig.update_layout(
 
-        height=650,
+        height=900,
 
-        width=430,
+        width=650,
 
         margin=dict(
 
@@ -390,9 +390,9 @@ def create_loading_figure(
 
             r=10,
 
-            t=10,
+            t=15,
 
-            b=10
+            b=15
 
         ),
 

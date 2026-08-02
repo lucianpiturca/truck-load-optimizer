@@ -414,12 +414,12 @@ if st.session_state.result:
 
 
             st.plotly_chart(
-
-                fig,
-
-                use_container_width=True
-
-            )
+    		fig,
+    		use_container_width=False,
+    		config={
+        	    "displayModeBar": False
+    		}
+	    )
 
 
 
