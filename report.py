@@ -1,151 +1,30 @@
 # report.py
+# Truck Load Optimizer 2.0
+#
+# Reporting functions
 
-from axles import AxleReport
-from packing import LayoutResult
-from cargo import Pallet
+
+from optimizer import OptimizationResult
+from truck import Truck
+from packing import Layout
 
 
 
 # ==========================================================
-# AXLE REPORT TEXT
+# STATUS ICONS
 # ==========================================================
 
 
-def axle_status_icon(overloaded):
+def status_icon(
+    value,
+    limit
+):
 
-    if overloaded:
-        return "🔴"
+    if value <= limit:
 
-    return "🟢"
-
-
-
-def total_status_icon(legal):
-
-    if legal:
         return "🟢"
 
     return "🔴"
-
-
-
-def generate_axle_report(
-
-    report: AxleReport
-
-):
-
-    lines = []
-
-
-    lines.append(
-
-        "## ⚖️ Axle Weight Report"
-
-    )
-
-
-    for axle in report.axles:
-
-
-        icon = axle_status_icon(
-
-            axle.overloaded
-
-        )
-
-
-        if axle.overloaded:
-
-            text = (
-
-                f"{icon} **Axle {axle.axle_number}:** "
-
-                f"{axle.weight:,.0f} kg / "
-
-                f"{axle.limit:,.0f} kg "
-
-                "**OVERWEIGHT**"
-
-            )
-
-        else:
-
-            text = (
-
-                f"{icon} **Axle {axle.axle_number}:** "
-
-                f"{axle.weight:,.0f} kg / "
-
-                f"{axle.limit:,.0f} kg"
-
-            )
-
-
-        lines.append(text)
-
-
-
-    lines.append("")
-
-
-
-    total_icon = total_status_icon(
-
-        report.legal_total
-
-    )
-
-
-    if report.legal_total:
-
-
-        lines.append(
-
-            f"## 🚛 Total Weight\n\n"
-
-            f"{total_icon} **Total: "
-
-            f"{report.total_weight:,.0f} kg / "
-
-            f"40,000 kg**"
-
-        )
-
-
-    else:
-
-
-        lines.append(
-
-            f"## 🚛 Total Weight\n\n"
-
-            f"{total_icon} **Total: "
-
-            f"{report.total_weight:,.0f} kg / "
-
-            f"40,000 kg "
-
-            "OVERWEIGHT**"
-
-        )
-
-
-
-    lines.append("")
-
-
-    lines.append(
-
-        f"📍 Centre of gravity: "
-
-        f"{report.centre_of_gravity:.2f} m"
-
-    )
-
-
-    return "\n\n".join(lines)
-
 
 
 
@@ -154,51 +33,345 @@ def generate_axle_report(
 # ==========================================================
 
 
-def generate_load_summary(
-
-    layout: LayoutResult
-
+def load_summary(
+    truck: Truck,
+    layout: Layout
 ):
 
+    if layout is None:
 
-    pallets = len(
+        return {
+            "loaded": 0,
+            "used_length": 0,
+            "free_length": truck.internal_length,
+            "utilisation": 0
+        }
 
-        layout.pallets
+
+    used = layout.used_length
+
+
+    free = (
+
+        truck.internal_length
+
+        -
+
+        used
 
     )
 
 
-    return f"""
-## 📦 Load Summary
+    if free < 0:
 
-**Loaded pallets:** {pallets}
+        free = 0
 
-**Trailer used:** {layout.used_length:.2f} m
 
-**Trailer free:** {layout.free_length:.2f} m
 
-**Floor utilisation:** {layout.utilisation*100:.1f} %
-"""
+    utilisation = (
+
+        layout.used_area
+
+        /
+
+        (
+            truck.internal_length
+            *
+            truck.internal_width
+        )
+
+        *
+
+        100
+
+    )
+
+
+
+    return {
+
+        "loaded": layout.pallet_count,
+
+        "used_length": used,
+
+        "free_length": free,
+
+        "utilisation": utilisation
+
+    }
 
 
 
 # ==========================================================
-# REJECTED CARGO
+# STREAMLIT REPORT
 # ==========================================================
 
 
-def generate_rejected_report(
-
-    rejected: list[Pallet]
-
+def generate_report(
+    result: OptimizationResult,
+    truck: Truck
 ):
 
 
-    if not rejected:
+    lines = []
 
-        return (
 
-            "## ✅ Cargo Not Loaded\n\n"
+
+    # ------------------------------------------------------
+    # No solution
+    # ------------------------------------------------------
+
+    if result.best is None:
+
+
+        lines.append(
+
+            "❌ No legal loading solution found."
+
+        )
+
+
+        if result.rejected:
+
+
+            lines.append(
+
+                ""
+
+            )
+
+
+            lines.append(
+
+                "Cargo that could not be loaded:"
+
+            )
+
+
+            for pallet in result.rejected:
+
+
+                lines.append(
+
+                    f"- {pallet.description}: "
+                    f"{pallet.reason_not_loaded}"
+
+                )
+
+
+        return "\n\n".join(lines)
+
+
+
+    layout = result.best
+
+
+
+    # ------------------------------------------------------
+    # Load summary
+    # ------------------------------------------------------
+
+    summary = load_summary(
+
+        truck,
+
+        layout
+
+    )
+
+
+
+    lines.append(
+
+        "📦 Load Summary"
+
+    )
+
+
+    lines.append(
+
+        f"Loaded pallets: "
+        f"{summary['loaded']}"
+
+    )
+
+
+    lines.append(
+
+        f"Trailer used: "
+        f"{summary['used_length']:.2f} m"
+
+    )
+
+
+    lines.append(
+
+        f"Trailer free: "
+        f"{summary['free_length']:.2f} m"
+
+    )
+
+
+    lines.append(
+
+        f"Floor utilisation: "
+        f"{summary['utilisation']:.1f} %"
+
+    )
+
+
+
+    # ------------------------------------------------------
+    # Axles
+    # ------------------------------------------------------
+
+    lines.append("")
+
+    lines.append(
+
+        "⚖️ Axle Weight Report"
+
+    )
+
+
+
+    axle_report = result.axle_report
+
+
+
+    if axle_report:
+
+
+        for index, weight in enumerate(
+
+            axle_report.axle_weights
+
+        ):
+
+
+            limit = truck.axle_limits[index]
+
+
+            icon = status_icon(
+
+                weight,
+
+                limit
+
+            )
+
+
+            extra = ""
+
+
+            if weight > limit:
+
+                extra = " OVERWEIGHT"
+
+
+
+            lines.append(
+
+                f"{icon} Axle {index+1}: "
+                f"{weight:,.0f} kg / "
+                f"{limit:,.0f} kg"
+                f"{extra}"
+
+            )
+
+
+
+        lines.append("")
+
+
+        icon = status_icon(
+
+            axle_report.total_weight,
+
+            truck.legal_gross
+
+        )
+
+
+        extra = ""
+
+
+        if axle_report.total_weight > truck.legal_gross:
+
+            extra = " OVERWEIGHT"
+
+
+
+        lines.append(
+
+            "🚛 Total Weight"
+
+        )
+
+
+        lines.append(
+
+            f"{icon} Total: "
+            f"{axle_report.total_weight:,.0f} kg / "
+            f"{truck.legal_gross:,.0f} kg"
+            f"{extra}"
+
+        )
+
+
+        lines.append("")
+
+
+        lines.append(
+
+            f"📍 Centre of gravity: "
+            f"{axle_report.centre_of_gravity:.2f} m"
+
+        )
+
+
+
+    # ------------------------------------------------------
+    # Rejected cargo
+    # ------------------------------------------------------
+
+    lines.append("")
+
+
+    if result.rejected:
+
+
+        lines.append(
+
+            "⚠️ Cargo Not Loaded"
+
+        )
+
+
+        for pallet in result.rejected:
+
+
+            lines.append(
+
+                f"{pallet.description} "
+                f"(Pallet {pallet.id}): "
+                f"{pallet.reason_not_loaded}"
+
+            )
+
+
+
+    else:
+
+
+        lines.append(
+
+            "✅ Cargo Not Loaded"
+
+        )
+
+
+        lines.append(
 
             "All cargo was loaded."
 
@@ -206,98 +379,4 @@ def generate_rejected_report(
 
 
 
-    text = [
-
-        "## ⚠️ Cargo Not Loaded"
-
-    ]
-
-
-    for pallet in rejected:
-
-
-        reason = pallet.reject_reason
-
-
-        if not reason:
-
-            reason = (
-
-                "Could not fit legally"
-
-            )
-
-
-        text.append(
-
-            f"- {pallet.description} "
-
-            f"(Pallet {pallet.id}): "
-
-            f"{reason}"
-
-        )
-
-
-
-    return "\n".join(text)
-
-
-
-# ==========================================================
-# FULL REPORT
-# ==========================================================
-
-
-def generate_full_report(
-
-    layout,
-
-    axle_report,
-
-    rejected
-
-):
-
-
-    sections = []
-
-
-    sections.append(
-
-        generate_load_summary(
-
-            layout
-
-        )
-
-    )
-
-
-    sections.append(
-
-        generate_axle_report(
-
-            axle_report
-
-        )
-
-    )
-
-
-    sections.append(
-
-        generate_rejected_report(
-
-            rejected
-
-        )
-
-    )
-
-
-    return "\n\n---\n\n".join(
-
-        sections
-
-    )
+    return "\n\n".join(lines)

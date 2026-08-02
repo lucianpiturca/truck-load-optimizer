@@ -1,295 +1,322 @@
 # drawing.py
+# Truck Load Optimizer 2.0
+#
+# Trailer visualisation
 
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+
+import plotly.graph_objects as go
 
 from truck import Truck
-from packing import LayoutResult
-
-
-COLOUR_MAP = {}
-
-COLORS = [
-    "#4CAF50",
-    "#2196F3",
-    "#FF9800",
-    "#9C27B0",
-    "#F44336",
-    "#00BCD4",
-    "#795548",
-]
-
-
-def get_colour(description):
-
-    if description not in COLOUR_MAP:
-
-        COLOUR_MAP[description] = COLORS[
-            len(COLOUR_MAP) % len(COLORS)
-        ]
-
-    return COLOUR_MAP[description]
+from packing import Layout
 
 
 
-def draw_trailer(truck: Truck, layout: LayoutResult):
+# ==========================================================
+# COLOURS
+# ==========================================================
 
 
-    fig, ax = plt.subplots(
+TRAILER_COLOR = "#f5f5f5"
 
-        figsize=(5,10),
+PALLET_COLOR = "#b8d8ff"
 
-        dpi=150
+PALLET_ROTATED = "#ffd59a"
 
-    )
+LINE_COLOR = "#999999"
 
 
-    # ==================================================
+
+# ==========================================================
+# DRAW TRAILER
+# ==========================================================
+
+
+def create_loading_figure(
+    truck: Truck,
+    layout: Layout
+):
+
+
+    fig = go.Figure()
+
+
+
+    # ------------------------------------------------------
     # Trailer outline
-    # ==================================================
+    # ------------------------------------------------------
 
-    trailer = patches.Rectangle(
+    fig.add_shape(
 
-        (0,0),
+        type="rect",
 
-        truck.trailer_width,
+        x0=0,
 
-        truck.trailer_length,
+        x1=truck.internal_width,
 
-        linewidth=2,
+        y0=0,
 
-        edgecolor="black",
+        y1=truck.internal_length,
 
-        facecolor="#f8f8f8"
+        fillcolor=TRAILER_COLOR,
+
+        line=dict(
+            color="#444",
+            width=2
+        )
 
     )
 
-    ax.add_patch(trailer)
+
+
+    # ------------------------------------------------------
+    # Meter grid outside trailer
+    # ------------------------------------------------------
+
+    for m in range(
+
+        1,
+
+        int(truck.internal_length)+1
+
+    ):
+
+        fig.add_annotation(
+
+            x=-0.15,
+
+            y=m,
+
+            text=f"{m}m",
+
+            showarrow=False,
+
+            font=dict(
+                size=10,
+                color="#555"
+            )
+
+        )
 
 
 
-    # ==================================================
+        fig.add_shape(
+
+            type="line",
+
+            x0=0,
+
+            x1=truck.internal_width,
+
+            y0=m,
+
+            y1=m,
+
+            line=dict(
+
+                color="#cccccc",
+
+                width=1,
+
+                dash="dot"
+
+            )
+
+        )
+
+
+
+    # ------------------------------------------------------
+    # Front / rear labels
+    # ------------------------------------------------------
+
+    fig.add_annotation(
+
+        x=truck.internal_width/2,
+
+        y=-0.45,
+
+        text="FRONT / CAB",
+
+        showarrow=False,
+
+        font=dict(
+            size=12,
+            color="black"
+        )
+
+    )
+
+
+    fig.add_annotation(
+
+        x=truck.internal_width/2,
+
+        y=truck.internal_length+0.45,
+
+        text="BACK DOORS",
+
+        showarrow=False,
+
+        font=dict(
+            size=12,
+            color="black"
+        )
+
+    )
+
+
+
+    # ------------------------------------------------------
     # Pallets
-    # ==================================================
+    # ------------------------------------------------------
 
     for pallet in layout.pallets:
 
 
-        visual_y = (
+        length = pallet.draw_length
 
-            truck.trailer_length
-
-            -
-
-            pallet.y
-
-            -
-
-            pallet.length
-
-        )
-
-
-        rect = patches.Rectangle(
-
-            (
-                pallet.x,
-                visual_y
-            ),
-
-            pallet.width,
-
-            pallet.length,
-
-            linewidth=1,
-
-            edgecolor="black",
-
-            facecolor=get_colour(
-                pallet.description
-            ),
-
-            alpha=0.85
-
-        )
-
-        ax.add_patch(rect)
+        width = pallet.draw_width
 
 
 
-        ax.text(
+        colour = (
 
-            pallet.x + pallet.width / 2,
+            PALLET_ROTATED
 
-            visual_y + pallet.length / 2,
+            if pallet.rotated
 
-            (
-                f"#{pallet.id}\n"
-                f"{int(pallet.width*100)}x"
-                f"{int(pallet.length*100)}"
-            ),
-
-            ha="center",
-
-            va="center",
-
-            fontsize=5,
-
-            color="white",
-
-            weight="bold"
+            else PALLET_COLOR
 
         )
 
 
+        fig.add_shape(
 
-    # ==================================================
-    # Metre guide lines
-    # ==================================================
+            type="rect",
 
-    for metre in range(
+            x0=pallet.y,
 
-        1,
+            x1=pallet.y + length,
 
-        int(truck.trailer_length)+1
+            y0=pallet.x,
 
-    ):
+            y1=pallet.x + width,
 
+            fillcolor=colour,
 
-        visual_y = truck.trailer_length - metre
+            line=dict(
 
+                color="#555",
 
-        ax.plot(
+                width=1
 
-            [
-                0,
-                truck.trailer_width
-            ],
-
-            [
-                visual_y,
-                visual_y
-            ],
-
-            linestyle=":",
-
-            linewidth=0.7,
-
-            color="#cccccc"
+            )
 
         )
 
 
-        ax.text(
+        label = (
 
-            -0.12,
+            f"{pallet.description}<br>"
 
-            visual_y,
+            f"{pallet.length:.2f}×"
 
-            f"{metre}m",
+            f"{pallet.width:.2f} m<br>"
 
-            ha="right",
+            f"{pallet.weight:.0f} kg"
 
-            va="center",
+        )
 
-            fontsize=6,
 
-            color="#888888"
+        if pallet.rotated:
+
+            label += "<br>↻ rotated"
+
+
+
+        fig.add_annotation(
+
+            x=pallet.y + length/2,
+
+            y=pallet.x + width/2,
+
+            text=label,
+
+            showarrow=False,
+
+            font=dict(
+
+                size=8,
+
+                color="black"
+
+            )
 
         )
 
 
 
-    # ==================================================
-    # Front / Back labels
-    # ==================================================
+    # ------------------------------------------------------
+    # Layout settings
+    # ------------------------------------------------------
 
-    ax.text(
+    fig.update_xaxes(
 
-        truck.trailer_width / 2,
+        visible=False,
 
-        truck.trailer_length + 0.12,
+        range=[
 
-        "🚛 FRONT (Kingpin)",
+            -0.8,
 
-        ha="center",
+            truck.internal_length + 0.8
 
-        va="bottom",
-
-        fontsize=8,
-
-        weight="bold"
+        ]
 
     )
 
 
-    ax.text(
+    fig.update_yaxes(
 
-        truck.trailer_width / 2,
+        visible=False,
 
-        -0.12,
+        range=[
 
-        "BACK (Doors)",
+            truck.internal_width + 0.5,
 
-        ha="center",
+            -0.5
 
-        va="top",
+        ],
 
-        fontsize=8,
+        scaleanchor="x",
 
-        weight="bold"
+        scaleratio=1
 
     )
 
 
 
-    # ==================================================
-    # Compact layout
-    # ==================================================
+    fig.update_layout(
 
-    ax.set_xlim(
+        width=650,
 
-        -0.45,
+        height=850,
 
-        truck.trailer_width + 0.05
+        margin=dict(
 
-    )
+            l=20,
 
+            r=20,
 
-    ax.set_ylim(
+            t=40,
 
-        -0.35,
+            b=40
 
-        truck.trailer_length + 0.35
+        ),
 
-    )
-
-
-    ax.set_aspect(
-
-        "equal"
+        showlegend=False
 
     )
 
-
-    ax.axis(
-
-        "off"
-
-    )
-
-
-    fig.subplots_adjust(
-
-        left=0.15,
-
-        right=0.98,
-
-        top=0.97,
-
-        bottom=0.03
-
-    )
 
 
     return fig
