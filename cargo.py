@@ -1,150 +1,263 @@
-from dataclasses import dataclass
+# ==========================================================
+# cargo.py
+# Truck Load Optimizer
+#
+# Cargo definitions and pallet objects
+# ==========================================================
+
+
+from dataclasses import dataclass, field
 from typing import List
+import copy
+
 
 
 # ==========================================================
-# CARGO ITEM (User input)
+# CARGO INPUT OBJECT
 # ==========================================================
+
 
 @dataclass
 class CargoItem:
+
     """
-    One line entered by the user.
+    User entered cargo.
 
     Example:
-        10 pallets
-        120 x 80
-        1200 kg each
+
+    Description:
+        Paper rolls
+
+    Quantity:
+        10
+
+    Size:
+        1.20 x 0.80 x 1.50 m
+
+    Weight:
+        1000 kg
     """
+
 
     description: str
 
     quantity: int
 
-    length: float      # metres
-    width: float       # metres
-    height: float      # metres
 
-    weight: float      # kg per pallet
+    length: float
+
+    width: float
+
+    height: float
+
+
+    weight: float
+
 
     allow_rotation: bool = True
 
-    def validate(self, truck=None):
+
+
+    def validate(self, truck):
 
         errors = []
 
-        if self.quantity <= 0:
-            errors.append("Quantity must be greater than zero.")
 
         if self.length <= 0:
-            errors.append("Length must be greater than zero.")
+
+            errors.append(
+                "Length must be positive"
+            )
+
 
         if self.width <= 0:
-            errors.append("Width must be greater than zero.")
+
+            errors.append(
+                "Width must be positive"
+            )
+
 
         if self.height <= 0:
-            errors.append("Height must be greater than zero.")
+
+            errors.append(
+                "Height must be positive"
+            )
+
 
         if self.weight <= 0:
-            errors.append("Weight must be greater than zero.")
 
-        if truck is not None:
+            errors.append(
+                "Weight must be positive"
+            )
 
-            if self.height > truck.max_cargo_height:
 
-                errors.append(
-                    f"Height ({self.height:.2f} m) exceeds "
-                    f"{truck.name} maximum cargo height "
-                    f"({truck.max_cargo_height:.2f} m)."
-                )
+        # physical check
 
-            if (
-                self.length > truck.internal_length
-                and
-                self.width > truck.internal_length
-            ):
+        fits_normal = (
 
-                errors.append(
-                    "Pallet is longer than trailer."
-                )
+            self.length <= truck.trailer_length
+            and
+            self.width <= truck.trailer_width
+            and
+            self.height <= truck.trailer_height
 
-            if (
-                self.width > truck.internal_width
-                and
-                self.length > truck.internal_width
-            ):
+        )
 
-                errors.append(
-                    "Pallet is wider than trailer."
-                )
+
+        fits_rotated = (
+
+            self.width <= truck.trailer_length
+            and
+            self.length <= truck.trailer_width
+            and
+            self.height <= truck.trailer_height
+
+        )
+
+
+        if not fits_normal and not fits_rotated:
+
+            errors.append(
+
+                "Cargo dimensions exceed trailer"
+
+            )
+
 
         return errors
 
 
+
 # ==========================================================
-# INDIVIDUAL PALLET
+# PALLET OBJECT
 # ==========================================================
+
 
 @dataclass
 class Pallet:
-    """
-    One physical pallet.
-    """
+
 
     id: int
 
+
     description: str
 
+
     length: float
+
     width: float
+
     height: float
+
 
     weight: float
 
+
     allow_rotation: bool = True
 
-    # Placement
-    x: float = 0.0
-    y: float = 0.0
 
-    rotated: bool = False
+
+    # ------------------------------------------------------
+    # Loading status
+    # ------------------------------------------------------
 
     loaded: bool = False
 
-    # Optional optimizer metadata
-    score: float = 0.0
+
+    rotated: bool = False
+
+
+
+    # position inside trailer
+
+    x: float = 0.0
+
+    y: float = 0.0
+
+
+
+    # reason if rejected
 
     reason_not_loaded: str = ""
 
-    @property
-    def draw_width(self):
 
-        return self.length if self.rotated else self.width
 
-    @property
-    def draw_length(self):
+    # ======================================================
+    # Geometry helpers
+    # ======================================================
 
-        return self.width if self.rotated else self.length
-
-    @property
-    def centre_x(self):
-
-        return self.x + self.draw_width / 2
-
-    @property
-    def centre_y(self):
-
-        return self.y + self.draw_length / 2
 
     @property
     def area(self):
 
-        return self.length * self.width
+        return (
+
+            self.length
+
+            *
+
+            self.width
+
+        )
+
+
 
     @property
-    def volume(self):
+    def draw_length(self):
 
-        return self.length * self.width * self.height
+        if self.rotated:
+
+            return self.width
+
+        return self.length
+
+
+
+    @property
+    def draw_width(self):
+
+        if self.rotated:
+
+            return self.length
+
+        return self.width
+
+
+
+    @property
+    def centre_y(self):
+
+        return (
+
+            self.y
+
+            +
+
+            self.draw_length / 2
+
+        )
+
+
+
+    @property
+    def centre_x(self):
+
+        return (
+
+            self.x
+
+            +
+
+            self.draw_width / 2
+
+        )
+
+
+
+    # ======================================================
+    # Rotation
+    # ======================================================
+
 
     def rotate(self):
 
@@ -153,19 +266,39 @@ class Pallet:
             self.rotated = not self.rotated
 
 
+
+    def clone(self):
+
+        return copy.deepcopy(self)
+
+
+
 # ==========================================================
-# EXPAND USER CARGO INTO INDIVIDUAL PALLETS
+# CREATE PALLETS FROM CARGO
 # ==========================================================
 
-def expand_cargo(cargo: List[CargoItem]) -> List[Pallet]:
+
+def expand_cargo(
+    cargo_items: List[CargoItem]
+):
+
 
     pallets = []
 
+
     pallet_id = 1
 
-    for item in cargo:
 
-        for _ in range(item.quantity):
+
+    for item in cargo_items:
+
+
+        for number in range(
+
+            item.quantity
+
+        ):
+
 
             pallets.append(
 
@@ -189,6 +322,58 @@ def expand_cargo(cargo: List[CargoItem]) -> List[Pallet]:
 
             )
 
+
             pallet_id += 1
 
+
+
     return pallets
+
+
+
+# ==========================================================
+# UTILITY FUNCTIONS
+# ==========================================================
+
+
+def total_weight(
+    pallets: List[Pallet]
+):
+
+    return sum(
+
+        p.weight
+
+        for p in pallets
+
+    )
+
+
+
+def loaded_weight(
+    pallets: List[Pallet]
+):
+
+    return sum(
+
+        p.weight
+
+        for p in pallets
+
+        if p.loaded
+
+    )
+
+
+
+def clone_pallets(
+    pallets: List[Pallet]
+):
+
+    return [
+
+        p.clone()
+
+        for p in pallets
+
+    ]

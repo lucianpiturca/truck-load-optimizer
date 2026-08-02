@@ -1,41 +1,32 @@
+# ==========================================================
 # app.py
-# Truck Load Optimizer 2.0
+# Truck Load Optimizer
+# ==========================================================
 
 
 import streamlit as st
 
 
-from truck import (
-    CURTAINSIDER,
-    FRIGO
-)
+from truck import TRUCKS
 
 
-from cargo import (
-    CargoItem,
-    expand_cargo
-)
+from cargo import CargoItem
 
 
-from optimizer import (
-    optimize_load
-)
+from optimizer import optimize_load
 
 
-from drawing import (
-    create_loading_figure
-)
+from drawing import create_loading_figure
 
 
-from report import (
-    generate_report
-)
+from report import generate_report
 
 
 
 # ==========================================================
-# PAGE CONFIG
+# PAGE SETTINGS
 # ==========================================================
+
 
 st.set_page_config(
 
@@ -51,14 +42,16 @@ st.set_page_config(
 # SESSION STATE
 # ==========================================================
 
+
 if "cargo" not in st.session_state:
 
     st.session_state.cargo = []
 
 
-if "solution" not in st.session_state:
 
-    st.session_state.solution = None
+if "result" not in st.session_state:
+
+    st.session_state.result = None
 
 
 
@@ -66,38 +59,39 @@ if "solution" not in st.session_state:
 # TITLE
 # ==========================================================
 
+
 st.title(
+
     "🚛 Truck Load Optimizer"
+
 )
 
 
 
 # ==========================================================
-# TRUCK SELECT
+# SIDEBAR
 # ==========================================================
 
-truck_name = st.selectbox(
 
-    "Truck type",
+st.sidebar.header(
 
-    [
-        "Curtainsider",
-        "Frigo"
-    ]
+    "Truck"
 
 )
 
 
 
-truck = (
+truck_name = st.sidebar.selectbox(
 
-    CURTAINSIDER
+    "Select truck",
 
-    if truck_name == "Curtainsider"
-
-    else FRIGO
+    list(TRUCKS.keys())
 
 )
+
+
+
+truck = TRUCKS[truck_name]
 
 
 
@@ -107,13 +101,18 @@ truck = (
 
 
 st.subheader(
-    "📦 Add Cargo"
+
+    "➕ Add Cargo"
+
 )
 
 
 
-with st.form("cargo_form"):
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 
+
+
+with col1:
 
     description = st.text_input(
 
@@ -121,6 +120,60 @@ with st.form("cargo_form"):
 
     )
 
+
+with col2:
+
+    length = st.number_input(
+
+        "Length cm",
+
+        min_value=1,
+
+        value=120
+
+    )
+
+
+with col3:
+
+    width = st.number_input(
+
+        "Width cm",
+
+        min_value=1,
+
+        value=80
+
+    )
+
+
+with col4:
+
+    height = st.number_input(
+
+        "Height cm",
+
+        min_value=1,
+
+        value=160
+
+    )
+
+
+with col5:
+
+    weight = st.number_input(
+
+        "Weight kg",
+
+        min_value=1,
+
+        value=1000
+
+    )
+
+
+with col6:
 
     quantity = st.number_input(
 
@@ -133,132 +186,36 @@ with st.form("cargo_form"):
     )
 
 
-    col1, col2, col3 = st.columns(3)
+
+if st.button(
+
+    "Add cargo"
+
+):
 
 
+    st.session_state.cargo.append(
 
-    with col1:
-
-        length = st.number_input(
-
-            "Length (m)",
-
-            value=1.20,
-
-            step=0.01
-
-        )
-
-
-    with col2:
-
-        width = st.number_input(
-
-            "Width (m)",
-
-            value=0.80,
-
-            step=0.01
-
-        )
-
-
-    with col3:
-
-        height = st.number_input(
-
-            "Height (m)",
-
-            value=1.50,
-
-            step=0.01
-
-        )
-
-
-    weight = st.number_input(
-
-        "Weight per pallet (kg)",
-
-        value=1000,
-
-        step=50
-
-    )
-
-
-    rotation = st.checkbox(
-
-        "Allow rotation",
-
-        value=True
-
-    )
-
-
-
-    submitted = st.form_submit_button(
-
-        "Add Cargo"
-
-    )
-
-
-
-    if submitted:
-
-
-        item = CargoItem(
+        CargoItem(
 
             description=description,
 
             quantity=int(quantity),
 
-            length=length,
+            length=length/100,
 
-            width=width,
+            width=width/100,
 
-            height=height,
+            height=height/100,
 
-            weight=weight,
-
-            allow_rotation=rotation
+            weight=weight
 
         )
 
-
-        errors = item.validate(
-
-            truck
-
-        )
+    )
 
 
-        if errors:
-
-            for e in errors:
-
-                st.error(e)
-
-
-        else:
-
-
-            st.session_state.cargo.append(
-
-                item
-
-            )
-
-
-            st.success(
-
-                "Cargo added"
-
-            )
-
-
-            st.session_state.solution = None
+    st.session_state.result = None
 
 
 
@@ -269,13 +226,14 @@ with st.form("cargo_form"):
 
 st.subheader(
 
-    "Current Cargo"
+    "📦 Cargo list"
 
 )
 
 
 
 if st.session_state.cargo:
+
 
 
     for index, item in enumerate(
@@ -285,11 +243,7 @@ if st.session_state.cargo:
     ):
 
 
-        cols = st.columns(
-
-            [4,2,2,2,1]
-
-        )
+        cols = st.columns([4,2,2,2,2,1])
 
 
         cols[0].write(
@@ -301,29 +255,28 @@ if st.session_state.cargo:
 
         cols[1].write(
 
-            f"{item.quantity} pcs"
+            f"{item.length:.2f} x {item.width:.2f}"
 
         )
 
 
         cols[2].write(
 
-            f"{item.length:.2f} × "
-            f"{item.width:.2f}"
+            f"{item.weight} kg"
 
         )
 
 
         cols[3].write(
 
-            f"{item.weight} kg"
+            f"x {item.quantity}"
 
         )
 
 
-        if cols[4].button(
+        if cols[5].button(
 
-            "🗑️",
+            "❌",
 
             key=f"delete_{index}"
 
@@ -336,26 +289,9 @@ if st.session_state.cargo:
 
             )
 
-
-            st.session_state.solution = None
-
+            st.session_state.result = None
 
             st.rerun()
-
-
-
-    if st.button(
-
-        "Clear all cargo"
-
-    ):
-
-
-        st.session_state.cargo = []
-
-        st.session_state.solution = None
-
-        st.rerun()
 
 
 
@@ -363,9 +299,24 @@ else:
 
     st.info(
 
-        "No cargo added."
+        "No cargo added"
 
     )
+
+
+
+if st.button(
+
+    "🗑 Clear all cargo"
+
+):
+
+
+    st.session_state.cargo = []
+
+    st.session_state.result = None
+
+    st.rerun()
 
 
 
@@ -380,90 +331,117 @@ st.divider()
 
 if st.button(
 
-    "⚙️ Optimize Load",
+    "🚀 Optimize Load",
 
     type="primary"
 
 ):
 
 
-    pallets = expand_cargo(
+    st.session_state.result = optimize_load(
+
+        truck,
 
         st.session_state.cargo
 
     )
 
 
-    st.session_state.solution = optimize_load(
-
-        truck,
-
-        pallets
-
-    )
-
-
 
 # ==========================================================
-# RESULTS
+# OUTPUT
 # ==========================================================
 
 
-if st.session_state.solution:
-
-
-    result = st.session_state.solution
+if st.session_state.result:
 
 
 
-    st.divider()
+    result = st.session_state.result
 
 
 
     st.subheader(
 
-        "📊 Report"
-
-    )
-
-
-    st.text(
-
-        generate_report(
-
-            result,
-
-            truck
-
-        )
+        "📊 Loading Result"
 
     )
 
 
 
-    if result.best:
+    if result.success:
 
 
-        st.subheader(
 
-            "🚛 Loading Visualization"
-
-        )
+        layout = result.best[0]
 
 
-        fig = create_loading_figure(
 
-            truck,
+        col1, col2 = st.columns(
 
-            result.best
+            [1,2]
 
         )
 
 
-        st.plotly_chart(
+        with col1:
 
-            fig,
 
-            use_container_width=True
+            st.text(
+
+                generate_report(
+
+                    truck,
+
+                    result
+
+                )
+
+            )
+
+
+
+        with col2:
+
+
+            fig = create_loading_figure(
+
+                truck,
+
+                layout
+
+            )
+
+
+            st.plotly_chart(
+
+                fig,
+
+                use_container_width=True
+
+            )
+
+
+
+    else:
+
+
+        st.error(
+
+            result.message
+
+        )
+
+
+
+        st.text(
+
+            generate_report(
+
+                truck,
+
+                result
+
+            )
 
         )

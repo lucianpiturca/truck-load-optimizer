@@ -1,209 +1,391 @@
+# ==========================================================
 # packing.py
+# Truck Load Optimizer
+#
+# Advanced physical packing engine
+#
+# Part 1/3
+# ==========================================================
+
 
 from dataclasses import dataclass, field
 from typing import List, Tuple
+import copy
+import math
+
 
 from cargo import Pallet
 from truck import Truck
 
 
+
 # ==========================================================
-# DATA STRUCTURES
+# BASIC GEOMETRY OBJECTS
 # ==========================================================
-
-@dataclass
-class FreeSpace:
-    """
-    Empty rectangular area inside trailer.
-
-    Coordinates:
-        x = distance from trailer front (m)
-        y = distance from left side (m)
-    """
-
-    x: float
-    y: float
-
-    length: float
-    width: float
 
 
 @dataclass
-class Placement:
-    pallet_id: int
+class Rectangle:
 
     x: float
+
     y: float
 
     length: float
+
     width: float
+
+
+
+    @property
+    def right(self):
+
+        return self.x + self.width
+
+
+
+    @property
+    def rear(self):
+
+        return self.y + self.length
+
+
+
+# ==========================================================
+# PALLET PLACEMENT RESULT
+# ==========================================================
+
+
+@dataclass
+class PalletPosition:
+
+
+    pallet: Pallet
+
+
+    x: float
+
+    y: float
+
 
     rotated: bool
+
+
+
+    @property
+    def length(self):
+
+        if self.rotated:
+
+            return self.pallet.width
+
+        return self.pallet.length
+
+
+
+    @property
+    def width(self):
+
+        if self.rotated:
+
+            return self.pallet.length
+
+        return self.pallet.width
+
+
+
+    @property
+    def area(self):
+
+        return (
+
+            self.length
+
+            *
+
+            self.width
+
+        )
+
+
+
+    @property
+    def centre_length(self):
+
+        return (
+
+            self.y
+
+            +
+
+            self.length / 2
+
+        )
+
+
+
+    @property
+    def centre_width(self):
+
+        return (
+
+            self.x
+
+            +
+
+            self.width / 2
+
+        )
+
+
+
+# ==========================================================
+# ROW STRUCTURE
+# ==========================================================
+
+
+@dataclass
+class LoadingRow:
+
+
+    start_position: float
+
+
+    pallets: List[PalletPosition] = field(
+
+        default_factory=list
+
+    )
+
+
+
+    @property
+    def length_used(self):
+
+        if not self.pallets:
+
+            return 0
+
+
+        return max(
+
+            p.length
+
+            for p in self.pallets
+
+        )
+
+
+
+    @property
+    def width_used(self):
+
+        return sum(
+
+            p.width
+
+            for p in self.pallets
+
+        )
+
+
+
+    @property
+    def weight(self):
+
+        return sum(
+
+            p.pallet.weight
+
+            for p in self.pallets
+
+        )
+
+
+
+# ==========================================================
+# COMPLETE LAYOUT
+# ==========================================================
 
 
 @dataclass
 class Layout:
 
-    pallets: List[Pallet] = field(default_factory=list)
 
-    rejected: List[Pallet] = field(default_factory=list)
+    pallets: List[Pallet] = field(
+
+        default_factory=list
+
+    )
+
+
+    rows: List[LoadingRow] = field(
+
+        default_factory=list
+
+    )
+
 
     used_length: float = 0.0
+
 
     used_area: float = 0.0
 
 
-    def add(self, pallet):
-
-        self.pallets.append(pallet)
-
-        pallet.loaded = True
-
-
-
-    def reject(self, pallet, reason):
-
-        pallet.loaded = False
-
-        pallet.reason_not_loaded = reason
-
-        self.rejected.append(pallet)
+    score: float = 0.0
 
 
 
     @property
     def pallet_count(self):
 
-        return len(self.pallets)
+        return len(
 
+            self.pallets
 
-
-# ==========================================================
-# GEOMETRY FUNCTIONS
-# ==========================================================
-
-
-def rectangle_inside(
-    x,
-    y,
-    length,
-    width,
-    trailer_length,
-    trailer_width
-):
-
-    return (
-
-        x >= 0
-
-        and y >= 0
-
-        and x + length <= trailer_length
-
-        and y + width <= trailer_width
-
-    )
-
-
-
-def overlap(
-    x1,
-    y1,
-    l1,
-    w1,
-
-    x2,
-    y2,
-    l2,
-    w2
-):
-
-    """
-    Rectangle collision detection.
-    """
-
-    if x1 + l1 <= x2:
-        return False
-
-    if x2 + l2 <= x1:
-        return False
-
-    if y1 + w1 <= y2:
-        return False
-
-    if y2 + w2 <= y1:
-        return False
-
-
-    return True
-
-
-
-def pallet_dimensions(
-    pallet: Pallet
-) -> List[Tuple[float,float,bool]]:
-
-
-    result = []
-
-
-    result.append(
-        (
-            pallet.length,
-            pallet.width,
-            False
         )
+
+
+
+    def clone(self):
+
+        return copy.deepcopy(
+
+            self
+
+        )
+
+
+
+# ==========================================================
+# PACKING CANDIDATE
+# ==========================================================
+
+
+@dataclass
+class PackingCandidate:
+
+
+    layout: Layout
+
+
+    reason: str = ""
+
+
+
+    score: float = 0.0
+
+
+
+# ==========================================================
+# DIMENSION HELPERS
+# ==========================================================
+
+
+def possible_orientations(
+    pallet: Pallet
+):
+
+    """
+    Returns possible pallet orientations.
+
+    Original first.
+    Rotated second.
+
+    Duplicate rotations are removed.
+    """
+
+
+    options = []
+
+
+    options.append(
+
+        (
+
+            pallet.length,
+
+            pallet.width,
+
+            False
+
+        )
+
     )
 
 
     if pallet.allow_rotation:
 
-        result.append(
-            (
-                pallet.width,
-                pallet.length,
-                True
-            )
-        )
-
-
-    return result
-
-
-
-# ==========================================================
-# VALIDATION
-# ==========================================================
-
-
-def pallet_height_ok(
-    pallet,
-    truck
-):
-
-    return (
-        pallet.height <= truck.max_cargo_height
-    )
-
-
-
-def pallet_can_fit_anywhere(
-    pallet,
-    truck
-):
-
-    for length,width,_ in pallet_dimensions(pallet):
 
         if (
-            length <= truck.internal_length
-            and
-            width <= truck.internal_width
+
+            pallet.width != pallet.length
+
         ):
 
-            return True
+
+            options.append(
+
+                (
+
+                    pallet.width,
+
+                    pallet.length,
+
+                    True
+
+                )
+
+            )
 
 
-    return False
+
+    return options
+
+
+
+# ==========================================================
+# TRAILER BOUNDARY CHECK
+# ==========================================================
+
+
+def inside_trailer(
+    pallet_position: PalletPosition,
+    truck: Truck
+):
+
+
+    return (
+
+        pallet_position.x >= 0
+
+        and
+
+        pallet_position.y >= 0
+
+        and
+
+        pallet_position.x +
+
+        pallet_position.width
+
+        <=
+
+        truck.trailer_width
+
+
+        and
+
+
+        pallet_position.y +
+
+        pallet_position.length
+
+        <=
+
+        truck.trailer_length
+
+    )
 
 
 
@@ -212,223 +394,311 @@ def pallet_can_fit_anywhere(
 # ==========================================================
 
 
-def position_is_free(
-    pallet,
-    x,
-    y,
-    length,
-    width,
-    layout
+def rectangles_overlap(
+    a: Rectangle,
+    b: Rectangle
 ):
 
-    for existing in layout.pallets:
+
+    return not (
+
+        a.right <= b.x
+
+        or
+
+        b.right <= a.x
+
+        or
+
+        a.rear <= b.y
+
+        or
+
+        b.rear <= a.y
+
+    )
 
 
-        if overlap(
 
-            x,
-            y,
-            length,
-            width,
-
-            existing.x,
-            existing.y,
-
-            existing.draw_length,
-            existing.draw_width
-
-        ):
-
-            return False
-
-
-
-    return True
-
-# ==========================================================
-# FREE SPACE MANAGEMENT
-# ==========================================================
-
-
-def split_free_space(
-    space: FreeSpace,
-    x,
-    y,
-    length,
-    width
+def pallet_overlap(
+    new_position: PalletPosition,
+    existing: List[PalletPosition]
 ):
 
-    """
-    After placing a pallet, split the remaining
-    rectangle into smaller free rectangles.
 
-    Guillotine split:
-    - area behind pallet
-    - area beside pallet
-    """
+    new_rect = Rectangle(
 
-    spaces = []
+        new_position.x,
+
+        new_position.y,
+
+        new_position.length,
+
+        new_position.width
+
+    )
 
 
-    # Remaining length behind pallet
 
-    if space.length > length:
+    for item in existing:
 
-        spaces.append(
 
-            FreeSpace(
+        old_rect = Rectangle(
 
-                x=x + length,
+            item.x,
 
-                y=y,
+            item.y,
 
-                length=space.length - length,
+            item.length,
 
-                width=space.width
-
-            )
+            item.width
 
         )
 
 
-    # Remaining width beside pallet
+        if rectangles_overlap(
 
-    if space.width > width:
+            new_rect,
 
-        spaces.append(
+            old_rect
 
-            FreeSpace(
-
-                x=x,
-
-                y=y + width,
-
-                length=length,
-
-                width=space.width - width
-
-            )
-
-        )
-
-
-    return spaces
-
-
-
-def clean_free_spaces(
-    spaces: List[FreeSpace]
-):
-
-    """
-    Remove invalid spaces.
-    """
-
-    result = []
-
-
-    for s in spaces:
-
-        if (
-            s.length > 0.001
-            and
-            s.width > 0.001
         ):
 
-            result.append(s)
+            return True
 
 
-    return result
+
+    return False
 
 
 
 # ==========================================================
-# PLACEMENT SEARCH
+# POSITION CREATION
 # ==========================================================
 
 
-def find_position(
+def create_position(
+
     pallet: Pallet,
-    truck: Truck,
-    layout: Layout,
-    free_spaces: List[FreeSpace]
+
+    x: float,
+
+    y: float,
+
+    rotated: bool
+
+):
+
+
+    return PalletPosition(
+
+        pallet=pallet,
+
+        x=x,
+
+        y=y,
+
+        rotated=rotated
+
+    )
+
+
+# ==========================================================
+# EURO PALLET PATTERN LOGIC
+# Part 2/3
+# ==========================================================
+
+
+
+EURO_LENGTH = 1.20
+
+EURO_WIDTH = 0.80
+
+
+
+def is_euro_pallet(
+    pallet: Pallet
 ):
 
     """
-    Find the first valid position.
+    Detect standard EUR pallet.
 
-    This is intentionally simple.
-    Optimizer will later generate
-    and compare many layouts.
+    Accepted:
+    120x80
+    80x120
+
+    Small tolerance included.
     """
 
 
-    candidates = []
+    tolerance = 0.02
 
 
-    for space in free_spaces:
+    return (
+
+        (
+
+            abs(pallet.length - EURO_LENGTH)
+            < tolerance
+
+            and
+
+            abs(pallet.width - EURO_WIDTH)
+            < tolerance
+
+        )
+
+        or
+
+        (
+
+            abs(pallet.width - EURO_LENGTH)
+            < tolerance
+
+            and
+
+            abs(pallet.length - EURO_WIDTH)
+            < tolerance
+
+        )
+
+    )
 
 
-        for length, width, rotated in pallet_dimensions(pallet):
+
+# ==========================================================
+# PATTERN GENERATION
+# ==========================================================
 
 
-            if (
+def generate_width_patterns(
+    truck: Truck,
+    pallet: Pallet
+):
 
-                length <= space.length
+    """
+    Returns preferred width arrangements.
 
-                and
+    For euro pallets:
 
-                width <= space.width
+        3-wide:
+        80 + 80 + 80
 
-            ):
+        2-wide:
+        120 + 120
 
 
-                candidates.append(
+    For other pallets:
+        calculate possible counts.
+    """
 
-                    (
 
-                        space,
+    patterns = []
 
-                        length,
 
-                        width,
 
-                        rotated
+    if is_euro_pallet(pallet):
 
-                    )
+
+        # 3 wide euro pallets
+
+        patterns.append(
+
+            {
+
+                "count": 3,
+
+                "orientation": "turned",
+
+                "width_used": 2.40,
+
+                "priority": 100
+
+            }
+
+        )
+
+
+
+        # 2 wide euro pallets
+
+        patterns.append(
+
+            {
+
+                "count": 2,
+
+                "orientation": "normal",
+
+                "width_used": 2.40,
+
+                "priority": 80
+
+            }
+
+        )
+
+
+
+    else:
+
+
+        for length, width, rotated in possible_orientations(
+
+            pallet
+
+        ):
+
+
+            count = int(
+
+                truck.trailer_width
+
+                /
+
+                width
+
+            )
+
+
+            if count > 0:
+
+
+                patterns.append(
+
+                    {
+
+                        "count": count,
+
+                        "orientation":
+
+                            rotated,
+
+                        "width_used":
+
+                            count * width,
+
+                        "priority":
+
+                            count * 10
+
+                    }
 
                 )
 
 
 
-    if not candidates:
+    return sorted(
 
-        return None
+        patterns,
 
+        key=lambda x:
 
+        x["priority"],
 
-    # Prefer:
-    # 1. longest side forward
-    # 2. smallest remaining space
-
-    candidates.sort(
-
-        key=lambda c:
-
-            (
-
-                c[0].y,
-
-                c[0].x,
-
-                -(c[1]*c[2])
-
-            )
+        reverse=True
 
     )
-
-
-    return candidates[0]
 
 
 
@@ -437,236 +707,410 @@ def find_position(
 # ==========================================================
 
 
-def place_pallet(
-    pallet: Pallet,
-    placement,
-    layout: Layout,
-    free_spaces
-):
+def find_position(
 
-
-    space, length, width, rotated = placement
-
-
-    pallet.x = space.x
-
-    pallet.y = space.y
-
-    pallet.rotated = rotated
-
-
-
-    layout.add(pallet)
-
-
-
-    free_spaces.remove(space)
-
-
-
-    new_spaces = split_free_space(
-
-        space,
-
-        pallet.x,
-
-        pallet.y,
-
-        length,
-
-        width
-
-    )
-
-
-    free_spaces.extend(new_spaces)
-
-
-
-    free_spaces[:] = clean_free_spaces(
-
-        free_spaces
-
-    )
-
-
-
-# ==========================================================
-# SORTING HELPERS
-# ==========================================================
-
-
-def sort_pallets_for_loading(
-    pallets: List[Pallet]
-):
-
-    """
-    Initial loading priority.
-
-    Larger/heavier pallets first.
-    Optimizer will later replace this
-    with scoring.
-    """
-
-    return sorted(
-
-        pallets,
-
-        key=lambda p:
-
-            (
-
-                -(p.weight),
-
-                -(p.area)
-
-            )
-
-    )
-
-
-
-# ==========================================================
-# BASIC PACKING ENGINE
-# ==========================================================
-
-
-def pack_layout(
     truck: Truck,
-    pallets: List[Pallet]
+
+    pallet: Pallet,
+
+    existing: List[PalletPosition],
+
+    start_y: float
+
 ):
 
 
-    layout = Layout()
+    """
+    Searches a position.
+
+    Front to back.
+
+    Left to right.
+
+    """
 
 
-    free_spaces = [
+    step = 0.01
 
-        FreeSpace(
 
-            x=0,
 
-            y=0,
+    for rotated_length, rotated_width, rotated in possible_orientations(
 
-            length=truck.internal_length,
+        pallet
 
-            width=truck.internal_width
+    ):
+
+
+
+        y = start_y
+
+
+
+        while y + rotated_length <= truck.trailer_length:
+
+
+
+            x = 0
+
+
+
+            while x + rotated_width <= truck.trailer_width:
+
+
+
+                position = create_position(
+
+                    pallet,
+
+                    x,
+
+                    y,
+
+                    rotated
+
+                )
+
+
+
+                if inside_trailer(
+
+                    position,
+
+                    truck
+
+                ) and not pallet_overlap(
+
+                    position,
+
+                    existing
+
+                ):
+
+
+                    return position
+
+
+
+                x += step
+
+
+
+            y += step
+
+
+
+    return None
+
+
+
+# ==========================================================
+# BUILD ROW
+# ==========================================================
+
+
+def build_row(
+
+    truck: Truck,
+
+    pallets: List[Pallet],
+
+    start_y: float
+
+):
+
+
+    row = LoadingRow(
+
+        start_position=start_y
+
+    )
+
+
+
+    positions = []
+
+
+
+    x = 0
+
+
+
+    row_length = 0
+
+
+
+    for pallet in pallets:
+
+
+
+        position = find_position(
+
+            truck,
+
+            pallet,
+
+            positions,
+
+            start_y
 
         )
 
-    ]
+
+
+        if position is None:
+
+            break
 
 
 
-    ordered = sort_pallets_for_loading(
+        position.x = x
+
+
+
+        position.y = start_y
+
+
+
+        positions.append(
+
+            position
+
+        )
+
+
+        pallet.loaded = True
+
+        pallet.x = position.x
+
+        pallet.y = position.y
+
+        pallet.rotated = position.rotated
+
+
+
+        row_length = max(
+
+            row_length,
+
+            position.length
+
+        )
+
+
+
+        x += position.width
+
+
+
+    row.pallets = positions
+
+
+
+    return row, row_length
+
+
+
+# ==========================================================
+# PATTERN ROW CREATOR
+# ==========================================================
+
+
+def create_pattern_rows(
+
+    truck: Truck,
+
+    pallets: List[Pallet]
+
+):
+
+
+    rows = []
+
+
+    remaining = list(
 
         pallets
 
     )
 
 
-
-    for pallet in ordered:
-
-
-
-        if not pallet_height_ok(
-            pallet,
-            truck
-        ):
-
-            layout.reject(
-
-                pallet,
-
-                "Cargo height exceeds trailer limit"
-
-            )
-
-            continue
+    current_y = 0
 
 
 
-        if not pallet_can_fit_anywhere(
-            pallet,
-            truck
-        ):
-
-            layout.reject(
-
-                pallet,
-
-                "Pallet dimensions exceed trailer dimensions"
-
-            )
-
-            continue
+    while remaining:
 
 
 
-        placement = find_position(
+        row_pallets = []
 
-            pallet,
+
+
+        width_used = 0
+
+
+
+        reference = remaining[0]
+
+
+
+        patterns = generate_width_patterns(
 
             truck,
 
-            layout,
-
-            free_spaces
+            reference
 
         )
 
 
 
-        if placement is None:
+        pattern = patterns[0]
 
 
-            layout.reject(
 
-                pallet,
-
-                "Could not fit physically"
-
-            )
+        count = pattern["count"]
 
 
-        else:
 
+        for pallet in remaining[:count]:
 
-            place_pallet(
+            row_pallets.append(
 
-                pallet,
-
-                placement,
-
-                layout,
-
-                free_spaces
+                pallet
 
             )
 
 
 
-    return layout
+        row, length = build_row(
+
+            truck,
+
+            row_pallets,
+
+            current_y
+
+        )
+
+
+
+        if not row.pallets:
+
+            break
+
+
+
+        rows.append(
+
+            row
+
+        )
+
+
+
+        for pallet in row_pallets:
+
+            if pallet in remaining:
+
+                remaining.remove(
+
+                    pallet
+
+                )
+
+
+
+        current_y += length
+
+
+
+        if current_y >= truck.trailer_length:
+
+            break
+
+
+
+    return rows
+
+
 
 # ==========================================================
-# LAYOUT STATISTICS
+# APPLY ROWS TO LAYOUT
 # ==========================================================
 
 
-def calculate_layout_statistics(
+def rows_to_layout(
+
+    rows: List[LoadingRow]
+
+):
+
+
+    pallets = []
+
+
+
+    used_length = 0
+
+    used_area = 0
+
+
+
+    for row in rows:
+
+
+        for position in row.pallets:
+
+
+            pallets.append(
+
+                position.pallet
+
+            )
+
+
+            used_length = max(
+
+                used_length,
+
+                position.y + position.length
+
+            )
+
+
+            used_area += position.area
+
+
+
+    return Layout(
+
+        pallets=pallets,
+
+        rows=rows,
+
+        used_length=used_length,
+
+        used_area=used_area
+
+    )
+
+# ==========================================================
+# LAYOUT SCORING
+# Part 3/3
+# ==========================================================
+
+
+
+def calculate_used_length(
     layout: Layout
 ):
 
     if not layout.pallets:
 
-        layout.used_length = 0
-        layout.used_area = 0
-
-        return layout
+        return 0
 
 
-    layout.used_length = max(
+    return max(
 
         p.y + p.draw_length
 
@@ -675,7 +1119,13 @@ def calculate_layout_statistics(
     )
 
 
-    layout.used_area = sum(
+
+def calculate_used_area(
+    layout: Layout
+):
+
+
+    return sum(
 
         p.area
 
@@ -684,141 +1134,356 @@ def calculate_layout_statistics(
     )
 
 
-    return layout
+
+# ==========================================================
+# GAP ANALYSIS
+# ==========================================================
 
 
-
-def floor_utilisation(
-    layout: Layout,
-    truck: Truck
+def calculate_side_gap_penalty(
+    truck: Truck,
+    rows: List[LoadingRow]
 ):
 
-    if truck.internal_length <= 0:
-        return 0
 
-
-    trailer_area = (
-
-        truck.internal_length
-
-        *
-
-        truck.internal_width
-
-    )
-
-
-    return (
-
-        layout.used_area
-
-        /
-
-        trailer_area
-
-        *
-
-        100
-
-    )
+    penalty = 0
 
 
 
-# ==========================================================
-# LAYOUT VALIDATION
-# ==========================================================
+    for row in rows:
 
 
-def validate_layout(
-    layout: Layout,
-    truck: Truck
-):
-
-    errors = []
+        used = row.width_used
 
 
-    for pallet in layout.pallets:
+        gap = (
+
+            truck.trailer_width
+
+            -
+
+            used
+
+        )
 
 
-        if not pallet_height_ok(
-            pallet,
-            truck
-        ):
+        # large side gaps are undesirable
 
-            errors.append(
+        if gap > 0.20:
 
-                f"{pallet.description}: "
-                "height exceeds limit"
-
-            )
-
-
-        if not rectangle_inside(
-
-            pallet.x,
-
-            pallet.y,
-
-            pallet.draw_length,
-
-            pallet.draw_width,
-
-            truck.internal_length,
-
-            truck.internal_width
-
-        ):
-
-            errors.append(
-
-                f"{pallet.description}: "
-                "outside trailer"
-
-            )
+            penalty += gap * 10
 
 
 
-    return errors
+    return penalty
 
 
 
 # ==========================================================
-# COPY / CLONE SUPPORT
-# Used later by optimizer
+# STABILITY SCORE
 # ==========================================================
 
 
-def clone_layout(
+def stability_score(
     layout: Layout
 ):
 
-    import copy
+    """
+    Rewards:
+
+    - full width usage
+    - fewer gaps
+    - balanced rows
 
 
-    return copy.deepcopy(layout)
+    This is not axle calculation.
+    Axles are handled later.
+    """
+
+
+    score = 0
+
+
+
+    for row in layout.rows:
+
+
+        width = row.width_used
+
+
+        if width >= 2.35:
+
+            score += 20
+
+
+        elif width >= 2.00:
+
+            score += 10
+
+
+
+        else:
+
+            score -= 10
+
+
+
+    return score
 
 
 
 # ==========================================================
-# RESET PALLET STATUS
+# COMPLETE LAYOUT SCORE
 # ==========================================================
 
 
-def reset_pallets(
-    pallets
+def score_layout(
+    truck: Truck,
+    layout: Layout
 ):
 
-    for pallet in pallets:
 
-        pallet.loaded = False
+    score = 0
 
-        pallet.x = 0
 
-        pallet.y = 0
 
-        pallet.rotated = False
+    # more pallets is better
 
-        pallet.reason_not_loaded = ""
+    score += layout.pallet_count * 100
+
+
+
+    # better floor usage
+
+    trailer_area = (
+
+        truck.trailer_length
+
+        *
+
+        truck.trailer_width
+
+    )
+
+
+    if trailer_area > 0:
+
+
+        utilisation = (
+
+            layout.used_area
+
+            /
+
+            trailer_area
+
+        )
+
+        score += utilisation * 100
+
+
+
+    # stability
+
+    score += stability_score(
+
+        layout
+
+    )
+
+
+
+    # punish gaps
+
+    score -= calculate_side_gap_penalty(
+
+        truck,
+
+        layout.rows
+
+    )
+
+
+
+    # prefer shorter unused rear space
+
+    score -= (
+
+        truck.trailer_length
+
+        -
+
+        layout.used_length
+
+    )
+
+
+
+    return score
+
+
+
+# ==========================================================
+# GENERATE CANDIDATES
+# ==========================================================
+
+
+def generate_candidates(
+
+    truck: Truck,
+
+    pallets: List[Pallet]
+
+):
+
+
+    candidates = []
+
+
+
+    # ------------------------------------------------------
+    # Candidate 1
+    # Preferred patterns
+    # ------------------------------------------------------
+
+    ordered = sorted(
+
+        pallets,
+
+        key=lambda p:
+
+        (
+
+            -p.weight,
+
+            -p.area
+
+        )
+
+    )
+
+
+    rows = create_pattern_rows(
+
+        truck,
+
+        ordered
+
+    )
+
+
+    layout = rows_to_layout(
+
+        rows
+
+    )
+
+
+    layout.score = score_layout(
+
+        truck,
+
+        layout
+
+    )
+
+
+    candidates.append(
+
+        PackingCandidate(
+
+            layout=layout,
+
+            score=layout.score,
+
+            reason="Preferred stability pattern"
+
+        )
+
+    )
+
+
+
+    # ------------------------------------------------------
+    # Candidate 2
+    # Rotation alternative
+    # ------------------------------------------------------
+
+    rotated = []
+
+
+    for pallet in ordered:
+
+
+        copy_pallet = pallet.clone()
+
+
+        if copy_pallet.allow_rotation:
+
+            copy_pallet.rotate()
+
+
+
+        rotated.append(
+
+            copy_pallet
+
+        )
+
+
+
+    rows = create_pattern_rows(
+
+        truck,
+
+        rotated
+
+    )
+
+
+    layout = rows_to_layout(
+
+        rows
+
+    )
+
+
+    layout.score = score_layout(
+
+        truck,
+
+        layout
+
+    )
+
+
+    candidates.append(
+
+        PackingCandidate(
+
+            layout=layout,
+
+            score=layout.score,
+
+            reason="Rotation alternative"
+
+        )
+
+    )
+
+
+
+    return sorted(
+
+        candidates,
+
+        key=lambda c:
+
+        c.score,
+
+        reverse=True
+
+    )
 
 
 
@@ -828,28 +1493,22 @@ def reset_pallets(
 
 
 def pack_pallets(
+
     truck: Truck,
-    pallets
+
+    pallets: List[Pallet]
+
 ):
+
 
     """
     Main packing entry point.
 
-    Input:
-        truck object
-        list[Pallet]
-
-    Output:
-        Layout object
+    Returns best physical layout.
     """
 
 
-    reset_pallets(
-        pallets
-    )
-
-
-    layout = pack_layout(
+    candidates = generate_candidates(
 
         truck,
 
@@ -858,11 +1517,48 @@ def pack_pallets(
     )
 
 
-    calculate_layout_statistics(
+    if not candidates:
 
-        layout
+
+        return Layout()
+
+
+
+    best = candidates[0].layout
+
+
+
+    return best
+
+
+
+# ==========================================================
+# ALTERNATIVE SOLUTIONS
+# ==========================================================
+
+
+def get_alternative_layouts(
+
+    truck: Truck,
+
+    pallets: List[Pallet]
+
+):
+
+
+    candidates = generate_candidates(
+
+        truck,
+
+        pallets
 
     )
 
 
-    return layout
+    return [
+
+        c.layout
+
+        for c in candidates
+
+    ]

@@ -1,7 +1,9 @@
+# ==========================================================
 # drawing.py
-# Truck Load Optimizer 2.0
+# Truck Load Optimizer
 #
 # Trailer visualisation
+# ==========================================================
 
 
 import plotly.graph_objects as go
@@ -12,28 +14,54 @@ from packing import Layout
 
 
 # ==========================================================
-# COLOURS
+# COLOUR
 # ==========================================================
 
 
-TRAILER_COLOR = "#f5f5f5"
+PALLET_COLOUR = "#9ecae1"
 
-PALLET_COLOR = "#b8d8ff"
+PALLET_BORDER = "#1f4e79"
 
-PALLET_ROTATED = "#ffd59a"
-
-LINE_COLOR = "#999999"
+GRID_COLOUR = "#d0d0d0"
 
 
 
 # ==========================================================
-# DRAW TRAILER
+# TEXT SIZE
+# ==========================================================
+
+
+def pallet_font_size(
+    layout: Layout
+):
+
+    count = layout.pallet_count
+
+
+    if count <= 10:
+        return 11
+
+    if count <= 20:
+        return 9
+
+    if count <= 35:
+        return 7
+
+    return 6
+
+
+
+# ==========================================================
+# CREATE FIGURE
 # ==========================================================
 
 
 def create_loading_figure(
+
     truck: Truck,
+
     layout: Layout
+
 ):
 
 
@@ -43,7 +71,16 @@ def create_loading_figure(
 
     # ------------------------------------------------------
     # Trailer outline
+    #
+    # Coordinate system:
+    #
+    # x = width
+    # y = length
+    #
+    # FRONT = y=0
+    # BACK = maximum length
     # ------------------------------------------------------
+
 
     fig.add_shape(
 
@@ -51,52 +88,38 @@ def create_loading_figure(
 
         x0=0,
 
-        x1=truck.internal_width,
+        x1=truck.trailer_width,
 
         y0=0,
 
-        y1=truck.internal_length,
-
-        fillcolor=TRAILER_COLOR,
+        y1=truck.trailer_length,
 
         line=dict(
-            color="#444",
+
+            color="black",
+
             width=2
-        )
+
+        ),
+
+        fillcolor="#fafafa"
 
     )
 
 
 
     # ------------------------------------------------------
-    # Meter grid outside trailer
+    # Internal metre grid
     # ------------------------------------------------------
 
-    for m in range(
+
+    for metre in range(
 
         1,
 
-        int(truck.internal_length)+1
+        int(truck.trailer_length)+1
 
     ):
-
-        fig.add_annotation(
-
-            x=-0.15,
-
-            y=m,
-
-            text=f"{m}m",
-
-            showarrow=False,
-
-            font=dict(
-                size=10,
-                color="#555"
-            )
-
-        )
-
 
 
         fig.add_shape(
@@ -105,15 +128,15 @@ def create_loading_figure(
 
             x0=0,
 
-            x1=truck.internal_width,
+            x1=truck.trailer_width,
 
-            y0=m,
+            y0=metre,
 
-            y1=m,
+            y1=metre,
 
             line=dict(
 
-                color="#cccccc",
+                color=GRID_COLOUR,
 
                 width=1,
 
@@ -126,49 +149,17 @@ def create_loading_figure(
 
 
     # ------------------------------------------------------
-    # Front / rear labels
-    # ------------------------------------------------------
-
-    fig.add_annotation(
-
-        x=truck.internal_width/2,
-
-        y=-0.45,
-
-        text="FRONT / CAB",
-
-        showarrow=False,
-
-        font=dict(
-            size=12,
-            color="black"
-        )
-
-    )
-
-
-    fig.add_annotation(
-
-        x=truck.internal_width/2,
-
-        y=truck.internal_length+0.45,
-
-        text="BACK DOORS",
-
-        showarrow=False,
-
-        font=dict(
-            size=12,
-            color="black"
-        )
-
-    )
-
-
-
-    # ------------------------------------------------------
     # Pallets
     # ------------------------------------------------------
+
+
+    font_size = pallet_font_size(
+
+        layout
+
+    )
+
+
 
     for pallet in layout.pallets:
 
@@ -179,34 +170,34 @@ def create_loading_figure(
 
 
 
-        colour = (
+        x0 = pallet.x
 
-            PALLET_ROTATED
+        x1 = pallet.x + width
 
-            if pallet.rotated
 
-            else PALLET_COLOR
+        y0 = pallet.y
 
-        )
+        y1 = pallet.y + length
+
 
 
         fig.add_shape(
 
             type="rect",
 
-            x0=pallet.y,
+            x0=x0,
 
-            x1=pallet.y + length,
+            x1=x1,
 
-            y0=pallet.x,
+            y0=y0,
 
-            y1=pallet.x + width,
+            y1=y1,
 
-            fillcolor=colour,
+            fillcolor=PALLET_COLOUR,
 
             line=dict(
 
-                color="#555",
+                color=PALLET_BORDER,
 
                 width=1
 
@@ -215,40 +206,131 @@ def create_loading_figure(
         )
 
 
+
+        # keep text short enough
+
         label = (
 
             f"{pallet.description}<br>"
 
-            f"{pallet.length:.2f}×"
+            f"{int(pallet.length*100)}x"
 
-            f"{pallet.width:.2f} m<br>"
+            f"{int(pallet.width*100)}"
 
-            f"{pallet.weight:.0f} kg"
+            f"<br>"
+
+            f"{int(pallet.weight)}kg"
 
         )
-
-
-        if pallet.rotated:
-
-            label += "<br>↻ rotated"
 
 
 
         fig.add_annotation(
 
-            x=pallet.y + length/2,
+            x=(x0+x1)/2,
 
-            y=pallet.x + width/2,
+            y=(y0+y1)/2,
+
 
             text=label,
+
+
+            showarrow=False,
+
+
+            font=dict(
+
+                size=font_size,
+
+                color="black"
+
+            ),
+
+
+            align="center"
+
+        )
+
+
+
+    # ------------------------------------------------------
+    # Front / Back labels
+    # ------------------------------------------------------
+
+
+    fig.add_annotation(
+
+        x=truck.trailer_width/2,
+
+        y=-0.35,
+
+        text="FRONT",
+
+        showarrow=False,
+
+        font=dict(
+
+            size=14,
+
+            color="black"
+
+        )
+
+    )
+
+
+
+    fig.add_annotation(
+
+        x=truck.trailer_width/2,
+
+        y=truck.trailer_length+0.35,
+
+        text="BACK DOORS",
+
+        showarrow=False,
+
+        font=dict(
+
+            size=12,
+
+            color="black"
+
+        )
+
+    )
+
+
+
+    # ------------------------------------------------------
+    # External metre labels
+    # ------------------------------------------------------
+
+
+    for metre in range(
+
+        1,
+
+        int(truck.trailer_length)+1
+
+    ):
+
+
+        fig.add_annotation(
+
+            x=truck.trailer_width+0.12,
+
+            y=metre,
+
+            text=f"{metre}m",
 
             showarrow=False,
 
             font=dict(
 
-                size=8,
+                size=9,
 
-                color="black"
+                color="grey"
 
             )
 
@@ -257,8 +339,9 @@ def create_loading_figure(
 
 
     # ------------------------------------------------------
-    # Layout settings
+    # Layout formatting
     # ------------------------------------------------------
+
 
     fig.update_xaxes(
 
@@ -266,9 +349,9 @@ def create_loading_figure(
 
         range=[
 
-            -0.8,
+            -0.4,
 
-            truck.internal_length + 0.8
+            truck.trailer_width+0.7
 
         ]
 
@@ -281,9 +364,9 @@ def create_loading_figure(
 
         range=[
 
-            truck.internal_width + 0.5,
+            truck.trailer_length+0.7,
 
-            -0.5
+            -0.7
 
         ],
 
@@ -297,26 +380,27 @@ def create_loading_figure(
 
     fig.update_layout(
 
-        width=650,
+        height=650,
 
-        height=850,
+        width=430,
 
         margin=dict(
 
-            l=20,
+            l=10,
 
-            r=20,
+            r=10,
 
-            t=40,
+            t=10,
 
-            b=40
+            b=10
 
         ),
 
-        showlegend=False
+        showlegend=False,
+
+        plot_bgcolor="white"
 
     )
-
 
 
     return fig
