@@ -18,7 +18,7 @@ def pallet_font_size(layout):
         return 12
     if layout.pallet_count <= 20:
         return 10
-    return 8
+    return 10
 
 
 def pallet_colour(description):
@@ -26,12 +26,11 @@ def pallet_colour(description):
     return PALETTE[digest % len(PALETTE)]
 
 
-def pallet_label(pallet):
-    description = pallet.description
-    if len(description) > 17:
-        description = f"{description[:15]}…"
+def pallet_label(pallet, pallet_name):
+    if len(pallet_name) > 17:
+        pallet_name = f"{pallet_name[:15]}…"
     return (
-        f"<b>{description}</b><br>"
+        f"<b>{pallet_name}</b><br>"
         f"{pallet.draw_length * 100:.0f} × {pallet.draw_width * 100:.0f} cm<br>"
         f"{pallet.weight:,.0f} kg"
     )
@@ -88,7 +87,10 @@ def create_loading_figure(truck: Truck, layout: Layout):
             )
 
     hover_x, hover_y, hover_text = [], [], []
+    cargo_sequence = {}
     for pallet in layout.pallets:
+        cargo_sequence[pallet.description] = cargo_sequence.get(pallet.description, 0) + 1
+        pallet_name = f"{pallet.description} #{cargo_sequence[pallet.description]}"
         x0, x1 = pallet.y, pallet.y + pallet.draw_length
         y0, y1 = pallet.x, pallet.x + pallet.draw_width
         fig.add_shape(
@@ -103,7 +105,7 @@ def create_loading_figure(truck: Truck, layout: Layout):
         fig.add_annotation(
             x=(x0 + x1) / 2,
             y=(y0 + y1) / 2,
-            text=pallet_label(pallet),
+            text=pallet_label(pallet, pallet_name),
             showarrow=False,
             font=dict(size=pallet_font_size(layout), color="#FFFFFF"),
             align="center",
@@ -112,7 +114,7 @@ def create_loading_figure(truck: Truck, layout: Layout):
         hover_y.append((y0 + y1) / 2)
         orientation = "Rotated" if pallet.rotated else "Standard"
         hover_text.append(
-            f"<b>{pallet.description}</b><br>"
+            f"<b>{pallet_name}</b><br>"
             f"Position: {pallet.y:.2f} m from front<br>"
             f"Dimensions: {pallet.draw_length:.2f} × {pallet.draw_width:.2f} m<br>"
             f"Weight: {pallet.weight:,.0f} kg<br>"

@@ -24,10 +24,11 @@ st.markdown(
     .stApp { background: #F5F7FA; color: var(--ink); }
     [data-testid="stSidebar"] { background: #102A43; }
     [data-testid="stSidebar"] * { color: #F0F4F8; }
-    [data-testid="stSidebar"] div[data-baseweb="select"] > div { background: #F0F4F8 !important; border-color: #9FB3C8 !important; }
-    [data-testid="stSidebar"] div[data-baseweb="select"] div,
-    [data-testid="stSidebar"] div[data-baseweb="select"] span,
-    [data-testid="stSidebar"] div[data-baseweb="select"] input { color: #243B53 !important; -webkit-text-fill-color: #243B53 !important; opacity: 1 !important; }
+    [data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] > div { background: #F0F4F8 !important; border-color: #9FB3C8 !important; }
+    [data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div,
+    [data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] div,
+    [data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] span,
+    [data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] input { color: #243B53 !important; -webkit-text-fill-color: #243B53 !important; opacity: 1 !important; font-weight: 600 !important; }
     [data-baseweb="popover"] *, [role="listbox"] * { color: #243B53 !important; -webkit-text-fill-color: #243B53 !important; }
     [data-testid="stSidebar"] .stCaption { color: #BCCCDC !important; }
     .block-container { max-width: 1500px; padding-top: 2rem; padding-bottom: 3rem; }
@@ -176,15 +177,13 @@ if st.session_state.result:
         r2.metric("Trailer used", f"{layout.used_length:.2f} m")
         r3.metric("Free length", f"{layout.free_length:.2f} m")
         r4.metric("Load pattern", layout.pattern_name)
-        left_col, right_col = st.columns([1, 1.7], gap="large")
-        with left_col:
-            st.markdown("#### Compliance summary")
-            st.code(generate_report(truck, result), language=None)
-        with right_col:
-            st.markdown("#### Trailer load plan")
-            st.caption("Front bulkhead is on the left. Hover a pallet for its full details.")
-            fig = create_loading_figure(truck, layout)
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.markdown("#### Trailer load plan")
+        st.caption("Front bulkhead is on the left. Hover a pallet for its full details.")
+        fig = create_loading_figure(truck, layout)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+        st.markdown("#### Compliance summary")
+        st.code(generate_report(truck, result), language=None)
     else:
         st.error("No legal loading plan was found for the current manifest.")
         st.code(generate_report(truck, result), language=None)
