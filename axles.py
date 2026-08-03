@@ -360,6 +360,9 @@ def calculate_axle_weights(
 
     )
 
+    print("DEBUG KINGPIN:", kingpin_load)
+    print("DEBUG BOGIE:", bogie_load)
+    print("DEBUG CG:", calculate_cargo_cg(truck, pallets))
 
 
     steer, drive = calculate_tractor_axles(
