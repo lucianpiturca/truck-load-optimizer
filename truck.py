@@ -27,6 +27,10 @@ class Truck:
 
     trailer_width: float
 
+    # Maximum internal cargo height (metres)
+
+    trailer_height: float
+
     # Overall external trailer length (metres).  This is reference data;
     # packing must use trailer_length above.
 
@@ -114,6 +118,8 @@ CURTAINSIDER = Truck(
 
     trailer_width=2.45,
 
+    trailer_height=2.68,
+
     external_trailer_length=13.62,
 
 
@@ -183,6 +189,8 @@ FRIGO = Truck(
     trailer_length=13.31,
 
     trailer_width=2.45,
+
+    trailer_height=2.45,
 
     external_trailer_length=13.68,
 

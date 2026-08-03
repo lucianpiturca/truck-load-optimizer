@@ -24,7 +24,9 @@ st.markdown(
     .stApp { background: #F5F7FA; color: var(--ink); }
     [data-testid="stSidebar"] { background: #102A43; }
     [data-testid="stSidebar"] * { color: #F0F4F8; }
-    [data-testid="stSidebar"] [data-baseweb="select"] * { color: #243B53; }
+    [data-testid="stSidebar"] [data-baseweb="select"] > div { background: #F0F4F8 !important; border-color: #9FB3C8 !important; }
+    [data-testid="stSidebar"] [data-baseweb="select"] * { color: #243B53 !important; }
+    [data-baseweb="popover"] *, [role="listbox"] * { color: #243B53 !important; }
     [data-testid="stSidebar"] .stCaption { color: #BCCCDC !important; }
     .block-container { max-width: 1500px; padding-top: 2rem; padding-bottom: 3rem; }
     .hero { background: linear-gradient(115deg, #102A43, #1F4E79); border-radius: 18px; color: white; padding: 1.7rem 2rem; margin-bottom: 1.6rem; box-shadow: 0 12px 28px rgba(16,42,67,.15); }
@@ -57,6 +59,8 @@ with st.sidebar:
     truck = TRUCKS[truck_name]
     st.caption("Internal loading space")
     st.markdown(f"**{truck.trailer_length:.2f} m × {truck.trailer_width:.2f} m**")
+    st.caption("Maximum cargo height")
+    st.markdown(f"**{truck.trailer_height:.2f} m**")
     st.caption("Maximum combination weight")
     st.markdown(f"**{truck.legal_gross:,.0f} kg**")
     st.caption("Trailer axle group centre")

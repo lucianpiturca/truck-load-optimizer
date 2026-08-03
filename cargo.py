@@ -93,13 +93,20 @@ class CargoItem:
 
         # physical check
 
+        # Height is profile-specific because refrigerated trailers have a
+        # lower usable internal clearance than curtainsiders.
+        trailer_height = getattr(truck, "trailer_height", None)
+
         fits_normal = (
 
             self.length <= truck.trailer_length
             and
             self.width <= truck.trailer_width
             and
-            self.height <= truck.trailer_height
+            (
+                trailer_height is None
+                or self.height <= trailer_height
+            )
 
         )
 
@@ -110,7 +117,10 @@ class CargoItem:
             and
             self.length <= truck.trailer_width
             and
-            self.height <= truck.trailer_height
+            (
+                trailer_height is None
+                or self.height <= trailer_height
+            )
 
         )
 
