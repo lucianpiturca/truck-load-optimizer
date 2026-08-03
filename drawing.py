@@ -1,4 +1,4 @@
-"""Professional top-down trailer load-plan visualization."""
+"""Drawing helpers for visualization and PDF export."""
 
 import hashlib
 
@@ -6,7 +6,6 @@ import plotly.graph_objects as go
 
 from packing import Layout
 from truck import Truck
-
 
 PALETTE = ["#4C78A8", "#59A14F", "#E39C37", "#AF7AA1", "#E15759", "#76B7B2"]
 NAVY = "#102A43"
@@ -162,3 +161,20 @@ def create_loading_figure(truck: Truck, layout: Layout):
         hoverlabel=dict(bgcolor="#102A43", font_color="white", font_size=12),
     )
     return fig
+
+
+# -------------------------------
+# PDF export helper
+# -------------------------------
+
+def save_figure_pdf(fig: go.Figure) -> bytes:
+    """Render a Plotly figure to PDF bytes using Kaleido (fig.to_image).
+
+    Raises a ValueError if Kaleido is not available or rendering fails.
+    """
+    try:
+        # engine 'kaleido' requires the kaleido package to be installed
+        pdf = fig.to_image(format="pdf", engine="kaleido")
+        return pdf
+    except Exception as e:
+        raise ValueError(f"Failed to render PDF: {e}")
