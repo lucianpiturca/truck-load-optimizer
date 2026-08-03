@@ -1,65 +1,26 @@
 # ==========================================================
 # axles.py
 # Truck Load Optimizer
-#
-# Axle load calculation engine
+# Axle load calculation
 # ==========================================================
 
 
-from dataclasses import dataclass
 from typing import List
 
-from cargo import Pallet
-from truck import Truck
-
 
 
 # ==========================================================
-# RESULT OBJECT
+# BASIC HELPERS
 # ==========================================================
 
 
-@dataclass
-class AxleReport:
-
-
-    axle_weights: List[float]
-
-
-    total_weight: float
-
-
-    cargo_weight: float
-
-
-    centre_of_gravity: float
-
-
-
-    legal: bool
-
-
-
-    overweight_axles: List[int]
-
-
-
-# ==========================================================
-# TRAILER POSITION MODEL
-# ==========================================================
-
-
-def cargo_position(
-    pallet: Pallet
-):
+def pallet_position(pallet):
 
     """
-    Returns pallet centre position
+    Returns pallet centre position in metres
     from trailer front.
 
-    y is measured from front bulkhead.
     """
-
 
     return (
 
@@ -73,43 +34,103 @@ def cargo_position(
 
 
 
+def trailer_to_bogie_distance(truck):
+
+    """
+    Distance from trailer front
+    to centre of tridem bogie.
+
+    """
+
+    return truck.bogie_position
+
+
+
 # ==========================================================
-# WEIGHT DISTRIBUTION MODEL
+# CARGO MOMENT
 # ==========================================================
 
 
-def calculate_cargo_distribution(
-    truck: Truck,
-    pallets: List[Pallet]
+def cargo_moment(
+
+    pallets
+
 ):
 
     """
-    Calculates how cargo weight reaches axles.
 
-    The model uses:
+    Total cargo moment around trailer front.
 
-    - tractor front/drive group
-    - trailer tridem position
-
-    Cargo in front of bogie transfers load forward.
-    Cargo behind bogie transfers load rearward.
     """
 
+    moment = 0
 
 
-    cargo_axles = [
+    weight = 0
 
-        0.0,
 
-        0.0,
+    for pallet in pallets:
 
-        0.0,
 
-        0.0,
+        pos = pallet_position(
 
-        0.0
+            pallet
 
-    ]
+        )
+
+
+        moment += (
+
+            pallet.weight
+
+            *
+
+            pos
+
+        )
+
+
+        weight += pallet.weight
+
+
+    return weight, moment
+
+
+
+# ==========================================================
+# TRAILER BOGIE LOAD
+# ==========================================================
+
+
+def calculate_trailer_bogie_load(
+
+    truck,
+
+    pallets
+
+):
+
+    """
+
+    Calculates how much cargo weight
+    reaches the trailer bogie.
+
+    """
+
+    total_weight, moment = cargo_moment(
+
+        pallets
+
+    )
+
+
+    if total_weight == 0:
+
+        return 0
+
+
+
+    cg = moment / total_weight
 
 
 
@@ -117,233 +138,252 @@ def calculate_cargo_distribution(
 
 
 
-    total_cargo = 0
+    # Simple supported beam model:
+    #
+    # front support = kingpin
+    # rear support = bogie centre
+    #
+
+    bogie_share = (
+
+        total_weight
+
+        *
+
+        cg
+
+        /
+
+        bogie
+
+    )
 
 
+    return min(
 
-    weighted_position = 0
+        total_weight,
 
+        max(
 
+            0,
 
-    for pallet in pallets:
-
-
-        if not pallet.loaded:
-
-            continue
-
-
-
-        weight = pallet.weight
-
-
-
-        position = cargo_position(
-
-            pallet
-
-        )
-
-
-        total_cargo += weight
-
-
-
-        weighted_position += (
-
-            weight
-
-            *
-
-            position
+            bogie_share
 
         )
-
-
-
-        # --------------------------------------------------
-        # Simplified articulated vehicle load transfer
-        #
-        # Front of bogie:
-        # affects drive axle group
-        #
-        # Rear of bogie:
-        # affects trailer axles
-        # --------------------------------------------------
-
-
-        distance = position - bogie
-
-
-
-        if distance < 0:
-
-
-            # Cargo forward of bogie
-
-            transfer = min(
-
-                abs(distance) / bogie,
-
-                1
-
-            )
-
-
-            cargo_axles[1] += (
-
-                weight
-
-                *
-
-                0.45
-
-                *
-
-                transfer
-
-            )
-
-
-            trailer_share = (
-
-                weight
-
-                *
-
-                (
-
-                    1 -
-
-                    0.45 * transfer
-
-                )
-
-            )
-
-
-
-        else:
-
-
-            # Cargo behind bogie
-
-            transfer = min(
-
-                distance /
-
-                (
-
-                    truck.trailer_length
-
-                    -
-
-                    bogie
-
-                ),
-
-                1
-
-            )
-
-
-            trailer_share = (
-
-                weight
-
-                *
-
-                0.70
-
-                *
-
-                transfer
-
-            )
-
-
-            cargo_axles[1] += (
-
-                weight
-
-                -
-
-                trailer_share
-
-            )
-
-
-
-        # distribute trailer load
-
-        cargo_axles[2] += (
-
-            trailer_share * 0.34
-
-        )
-
-
-        cargo_axles[3] += (
-
-            trailer_share * 0.33
-
-        )
-
-
-        cargo_axles[4] += (
-
-            trailer_share * 0.33
-
-        )
-
-
-
-    if total_cargo > 0:
-
-
-        centre = (
-
-            weighted_position
-
-            /
-
-            total_cargo
-
-        )
-
-    else:
-
-        centre = 0
-
-
-
-    return (
-
-        cargo_axles,
-
-        total_cargo,
-
-        centre
 
     )
 
 
 
 # ==========================================================
-# MAIN AXLE CALCULATION
+# KINGPIN LOAD
+# ==========================================================
+
+
+def calculate_kingpin_load(
+
+    truck,
+
+    pallets
+
+):
+
+
+    total_weight, moment = cargo_moment(
+
+        pallets
+
+    )
+
+
+    if total_weight == 0:
+
+        return 0
+
+
+
+    bogie_load = calculate_trailer_bogie_load(
+
+        truck,
+
+        pallets
+
+    )
+
+
+    kingpin = (
+
+        total_weight
+
+        -
+
+        bogie_load
+
+    )
+
+
+    return max(
+
+        0,
+
+        kingpin
+
+    )
+
+
+
+# ==========================================================
+# TRACTOR AXLES
+# ==========================================================
+
+
+def calculate_tractor_axles(
+
+    truck,
+
+    kingpin_load
+
+):
+
+    """
+
+    Splits kingpin load between:
+
+    axle 1
+
+    axle 2
+
+
+    Based on European 4x2 tractor geometry.
+
+    """
+
+
+
+    wheelbase = truck.wheelbase
+
+
+
+    distance_from_front_axle = (
+
+        truck.kingpin_offset
+
+    )
+
+
+    front_share = (
+
+        kingpin_load
+
+        *
+
+        (
+
+            wheelbase
+
+            -
+
+            distance_from_front_axle
+
+        )
+
+        /
+
+        wheelbase
+
+    )
+
+
+    drive_share = (
+
+        kingpin_load
+
+        -
+
+        front_share
+
+    )
+
+
+    return (
+
+        front_share,
+
+        drive_share
+
+    )
+
+
+
+# ==========================================================
+# TRAILER AXLES
+# ==========================================================
+
+
+def calculate_trailer_axles(
+
+    truck,
+
+    bogie_load
+
+):
+
+    """
+
+    Splits tridem bogie load equally.
+
+    """
+
+    each = (
+
+        bogie_load / 3
+
+    )
+
+
+    return [
+
+        each,
+
+        each,
+
+        each
+
+    ]
+
+
+
+# ==========================================================
+# MAIN FUNCTION
 # ==========================================================
 
 
 def calculate_axle_weights(
 
-    truck: Truck,
+    truck,
 
-    pallets: List[Pallet]
+    pallets
 
 ):
 
 
-    cargo_axles, cargo_weight, cg = calculate_cargo_distribution(
+    cargo_weight, _ = cargo_moment(
+
+        pallets
+
+    )
+
+
+    kingpin = calculate_kingpin_load(
+
+        truck,
+
+        pallets
+
+    )
+
+
+    bogie = calculate_trailer_bogie_load(
 
         truck,
 
@@ -353,104 +393,89 @@ def calculate_axle_weights(
 
 
 
-    axle_weights = []
+    tractor_front, tractor_drive = calculate_tractor_axles(
+
+        truck,
+
+        kingpin
+
+    )
+
+
+    trailer_axles = calculate_trailer_axles(
+
+        truck,
+
+        bogie
+
+    )
 
 
 
-    for empty, cargo in zip(
-
-        truck.empty_axles,
-
-        cargo_axles
-
-    ):
+    empty = truck.empty_axles
 
 
-        axle_weights.append(
 
-            empty + cargo
+    axle_values = [
 
-        )
+        empty[0] + tractor_front,
+
+        empty[1] + tractor_drive,
+
+        empty[2] + trailer_axles[0],
+
+        empty[3] + trailer_axles[1],
+
+        empty[4] + trailer_axles[2]
+
+    ]
+
+
+
+    report = {}
+
+
+
+    for i, value in enumerate(axle_values):
+
+
+        report[f"Axle {i+1}"] = {
+
+            "weight": value,
+
+            "limit": truck.axle_limits[i]
+
+        }
 
 
 
     total = sum(
 
-        axle_weights
+        axle_values
 
     )
 
 
 
-    return AxleReport(
-
-        axle_weights=axle_weights,
-
-        total_weight=total,
-
-        cargo_weight=cargo_weight,
-
-        centre_of_gravity=cg,
-
-        legal=True,
-
-        overweight_axles=[]
-
-    )
+    report["total"] = total
 
 
 
-# ==========================================================
-# LEGAL CHECK
-# ==========================================================
+    if cargo_weight:
 
+        report["centre_of_gravity"] = (
 
-def check_axle_legality(
+            cargo_moment(pallets)[1]
 
-    truck: Truck,
+            /
 
-    report: AxleReport
+            cargo_weight
 
-):
+        )
 
+    else:
 
-    overweight = []
-
-
-
-    for index, weight in enumerate(
-
-        report.axle_weights
-
-    ):
-
-
-        if weight > truck.axle_limits[index]:
-
-
-            overweight.append(
-
-                index + 1
-
-            )
-
-
-
-    legal = (
-
-        len(overweight) == 0
-
-        and
-
-        report.total_weight <= truck.legal_gross
-
-    )
-
-
-
-    report.legal = legal
-
-    report.overweight_axles = overweight
+        report["centre_of_gravity"] = 0
 
 
 

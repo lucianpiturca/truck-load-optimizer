@@ -1,62 +1,30 @@
 # ==========================================================
 # report.py
 # Truck Load Optimizer
-#
-# Text report generator
+# Reporting engine
 # ==========================================================
 
 
-from truck import Truck
-from optimizer import OptimizationResult
+def kg(value):
 
+    return f"{value:,.0f} kg"
 
-
-# ==========================================================
-# FORMAT HELPERS
-# ==========================================================
-
-
-def weight_status(
-    value,
-    limit
-):
-
-    if value <= limit:
-
-        return "🟢"
-
-    return "🔴"
-
-
-
-def metres(value):
-
-    return f"{value:.2f} m"
-
-
-
-# ==========================================================
-# MAIN REPORT
-# ==========================================================
 
 
 def generate_report(
 
-    truck: Truck,
+    truck,
 
-    result: OptimizationResult
+    result
 
 ):
-
 
     lines = []
 
 
-
-    # ------------------------------------------------------
+    # ======================================================
     # Header
-    # ------------------------------------------------------
-
+    # ======================================================
 
     lines.append(
 
@@ -64,14 +32,58 @@ def generate_report(
 
     )
 
-
     lines.append("")
 
 
 
-    # ------------------------------------------------------
-    # Load summary
-    # ------------------------------------------------------
+    # ======================================================
+    # No solution
+    # ======================================================
+
+    if not result.success:
+
+
+        lines.append(
+
+            "❌ No legal loading solution found."
+
+        )
+
+        lines.append("")
+
+
+        if result.rejected:
+
+
+            lines.append(
+
+                "Reasons tested:"
+
+            )
+
+
+            for item in result.rejected[:10]:
+
+                lines.append(
+
+                    f"- {item['pallets']} pallets "
+
+                    f"({item['pattern']}): "
+
+                    f"{item['reason']}"
+
+                )
+
+
+        return "\n".join(lines)
+
+
+
+    # ======================================================
+    # Layout
+    # ======================================================
+
+    layout = result.best[0]
 
 
     lines.append(
@@ -83,257 +95,223 @@ def generate_report(
 
     lines.append(
 
-        f"Loaded pallets: {len(result.loaded_pallets)}"
+        f"Loaded pallets: {layout.pallet_count}"
+
+    )
+
+
+    lines.append(
+
+        f"Trailer used: {layout.used_length:.2f} m"
+
+    )
+
+
+    lines.append(
+
+        f"Trailer free: {layout.free_length:.2f} m"
 
     )
 
 
 
-    if result.best:
+    utilisation = (
+
+        layout.used_length
+
+        /
+
+        layout.trailer_length
+
+        *
+
+        100
+
+    )
 
 
-        layout = result.best[0]
+    lines.append(
 
+        f"Floor utilisation: {utilisation:.1f} %"
 
-        used = layout.used_length
-
-
-        free = (
-
-            truck.trailer_length
-
-            -
-
-            used
-
-        )
-
-
-        utilisation = (
-
-            layout.used_area
-
-            /
-
-            (
-
-                truck.trailer_length
-
-                *
-
-                truck.trailer_width
-
-            )
-
-            *
-
-            100
-
-        )
-
-
-
-        lines.append(
-
-            f"Trailer used: {metres(used)}"
-
-        )
-
-
-        lines.append(
-
-            f"Trailer free: {metres(free)}"
-
-        )
-
-
-        lines.append(
-
-            f"Floor utilisation: {utilisation:.1f} %"
-
-        )
-
+    )
 
 
     lines.append("")
 
 
 
-    # ------------------------------------------------------
+    # ======================================================
     # Axles
-    # ------------------------------------------------------
+    # ======================================================
+
+    lines.append(
+
+        "⚖️ Axle Weight Report"
+
+    )
 
 
-    if result.axle_report:
-
-
-        axle = result.axle_report
-
-
-
-        lines.append(
-
-            "⚖️ Axle Weight Report"
-
-        )
+    axle_report = result.axle_report
 
 
 
-        for index, value in enumerate(
-
-            axle.axle_weights
-
-        ):
+    for key, axle in axle_report.items():
 
 
-            limit = truck.axle_limits[index]
+        if key == "total":
 
-
-            icon = weight_status(
-
-                value,
-
-                limit
-
-            )
+            continue
 
 
 
-            extra = ""
+        weight = axle["weight"]
 
-
-            if value > limit:
-
-                extra = " OVERWEIGHT"
+        limit = axle["limit"]
 
 
 
-            lines.append(
+        if weight <= limit:
 
-                f"{icon} Axle {index+1}: "
+            status = "🟢"
 
-                f"{value:,.0f} kg / "
+            text = ""
 
-                f"{limit:,.0f} kg"
+        else:
 
-                f"{extra}"
+            status = "🔴"
 
-            )
-
-
-
-        lines.append("")
+            text = " OVERWEIGHT"
 
 
 
         lines.append(
 
-            "🚛 Total Weight"
+            f"{status} {key}: "
+
+            f"{kg(weight)} / "
+
+            f"{kg(limit)}"
+
+            f"{text}"
 
         )
 
 
-
-        icon = weight_status(
-
-            axle.total_weight,
-
-            truck.legal_gross
-
-        )
+    lines.append("")
 
 
 
-        extra = ""
+    # ======================================================
+    # Total weight
+    # ======================================================
 
 
-        if axle.total_weight > truck.legal_gross:
-
-            extra = " OVERWEIGHT"
+    total = axle_report["total"]
 
 
+    lines.append(
 
-        lines.append(
+        "🚛 Total Weight"
 
-            f"{icon} Total: "
-
-            f"{axle.total_weight:,.0f} kg / "
-
-            f"{truck.legal_gross:,.0f} kg"
-
-            f"{extra}"
-
-        )
+    )
 
 
+    if total <= truck.legal_gross:
 
-        lines.append("")
+        status = "🟢"
 
+        warning = ""
+
+    else:
+
+        status = "🔴"
+
+        warning = " OVERWEIGHT"
+
+
+
+    lines.append(
+
+        f"{status} Total: "
+
+        f"{kg(total)} / "
+
+        f"{kg(truck.legal_gross)}"
+
+        f"{warning}"
+
+    )
+
+
+    lines.append("")
+
+
+
+    # ======================================================
+    # Centre of gravity
+    # ======================================================
+
+
+    if "centre_of_gravity" in axle_report:
 
 
         lines.append(
 
             f"📍 Centre of gravity: "
 
-            f"{axle.centre_of_gravity:.2f} m"
+            f"{axle_report['centre_of_gravity']:.2f} m"
 
         )
 
 
-
-    # ------------------------------------------------------
-    # Rejected cargo
-    # ------------------------------------------------------
-
-
-    lines.append("")
+        lines.append("")
 
 
 
-    lines.append(
-
-        "⚠️ Cargo Not Loaded"
-
-    )
+    # ======================================================
+    # Pattern information
+    # ======================================================
 
 
-
-    if not result.rejected_pallets:
+    if layout.pattern_name:
 
 
         lines.append(
 
-            "All cargo was loaded."
+            f"📐 Loading pattern: "
+
+            f"{layout.pattern_name}"
 
         )
 
 
-    else:
+        lines.append("")
 
 
-        for pallet in result.rejected_pallets:
+
+    # ======================================================
+    # Rejected cargo
+    # ======================================================
 
 
-            reason = pallet.reason_not_loaded
+    if result.rejected:
 
 
-            if not reason:
+        lines.append(
 
-                reason = (
+            "⚠️ Alternative layouts rejected"
 
-                    "Could not fit legally"
-
-                )
+        )
 
 
+        for item in result.rejected[:5]:
 
             lines.append(
 
-                f"{pallet.description} "
+                f"- {item['pallets']} pallets: "
 
-                f"(Pallet {pallet.id}): "
-
-                f"{reason}"
+                f"{item['reason']}"
 
             )
 
