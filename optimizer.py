@@ -1,33 +1,26 @@
 # ==========================================================
 # optimizer.py
 # Truck Load Optimizer
-#
-# Main optimisation engine
+# Advanced optimisation engine
 # ==========================================================
 
 
 from dataclasses import dataclass, field
+
 from typing import List
 
 
-from truck import Truck
-
-from cargo import (
-    CargoItem,
-    Pallet,
-    expand_cargo
-)
-
 from packing import (
-    generate_candidates,
-    Layout
+
+    create_loading_candidates,
+
+    validate_layout
+
 )
 
-from axles import (
-    calculate_axle_weights,
-    check_axle_legality,
-    AxleReport
-)
+
+from axles import calculate_axle_weights
+
 
 
 
@@ -40,54 +33,80 @@ from axles import (
 class OptimizationResult:
 
 
-    best: List[Layout] = field(
+    success: bool
+
+
+    best: list = field(
 
         default_factory=list
 
     )
 
 
-    axle_report: AxleReport | None = None
+    axle_report: dict = field(
 
-
-
-    loaded_pallets: List[Pallet] = field(
-
-        default_factory=list
+        default_factory=dict
 
     )
-
-
-    rejected_pallets: List[Pallet] = field(
-
-        default_factory=list
-
-    )
-
-
-    success: bool = False
-
 
 
     message: str = ""
 
 
+    rejected: list = field(
+
+        default_factory=list
+
+    )
+
+
+
+
 
 # ==========================================================
-# LAYOUT LEGALITY
+# LEGAL CHECK
 # ==========================================================
 
 
-def evaluate_layout(
+def check_legal(
 
-    truck: Truck,
+    truck,
 
-    layout: Layout
+    layout
 
 ):
 
 
-    report = calculate_axle_weights(
+    errors = []
+
+
+
+    # -------------------------
+    # Physical validation
+    # -------------------------
+
+    valid, physical_errors = validate_layout(
+
+        layout
+
+    )
+
+
+    if not valid:
+
+        errors.extend(
+
+            physical_errors
+
+        )
+
+
+
+    # -------------------------
+    # Gross weight
+    # -------------------------
+
+    axle_report = calculate_axle_weights(
 
         truck,
 
@@ -96,64 +115,111 @@ def evaluate_layout(
     )
 
 
-    report = check_axle_legality(
 
-        truck,
+    total_weight = axle_report["total"]
 
-        report
 
-    )
+
+    if total_weight > truck.legal_gross:
+
+
+        errors.append(
+
+            f"Gross weight exceeded "
+
+            f"({total_weight:.0f} kg / "
+
+            f"{truck.legal_gross:.0f} kg)"
+
+        )
+
+
+
+    # -------------------------
+    # Axles
+    # -------------------------
+
+    for axle_name, axle in axle_report.items():
+
+
+        if axle_name == "total":
+
+            continue
+
+
+        if axle["weight"] > axle["limit"]:
+
+
+            errors.append(
+
+                f"{axle_name} exceeded "
+
+                f"({axle['weight']:.0f} kg / "
+
+                f"{axle['limit']:.0f} kg)"
+
+            )
+
 
 
     return (
 
-        report.legal,
+        len(errors) == 0,
 
-        report
+        axle_report,
+
+        errors
 
     )
 
 
 
+
+
 # ==========================================================
-# SORTING
+# LAYOUT SCORE
 # ==========================================================
 
 
-def layout_priority(
+def optimisation_score(
 
-    layout: Layout,
-
-    axle_report: AxleReport
+    layout
 
 ):
 
 
-    """
-    Higher is better.
-
-    Priority:
-
-    1. number of pallets
-    2. stability score
-    3. floor usage
-    4. lower centre of gravity
-    """
+    score = 0
 
 
-    return (
 
-        layout.pallet_count * 100000
+    # Primary objective:
+    # load as many pallets as possible
 
-        +
+    score += layout.pallet_count * 100000
 
-        layout.score * 100
 
-        -
 
-        axle_report.centre_of_gravity
+    # Prefer full trailer utilisation
+
+    score += (
+
+        layout.used_length * 100
 
     )
+
+
+
+    # Prefer Euro 3-wide
+
+    if layout.pattern_name == "EURO-3":
+
+        score += 50000
+
+
+
+    return score
+
+
 
 
 
@@ -164,202 +230,97 @@ def layout_priority(
 
 def optimize_load(
 
-    truck: Truck,
+    truck,
 
-    cargo_items: List[CargoItem]
+    cargo
 
 ):
 
 
-    result = OptimizationResult()
+    candidates = create_loading_candidates(
 
+        truck,
 
-
-    # ------------------------------------------------------
-    # Create pallets
-    # ------------------------------------------------------
-
-
-    pallets = expand_cargo(
-
-        cargo_items
+        cargo
 
     )
 
 
 
-    if not pallets:
+    if not candidates:
 
 
-        result.message = "No cargo"
+        return OptimizationResult(
 
+            success=False,
 
-        return result
-
-
-
-    # ------------------------------------------------------
-    # Search from maximum quantity downward
-    #
-    # This allows:
-    #
-    # 34 requested
-    # 33 legal
-    #
-    # instead of returning no solution.
-    # ------------------------------------------------------
-
-
-    pallets_sorted = sorted(
-
-        pallets,
-
-        key=lambda p:
-
-        p.weight,
-
-        reverse=True
-
-    )
-
-
-
-    for amount in range(
-
-        len(pallets_sorted),
-
-        0,
-
-        -1
-
-    ):
-
-
-        trial = pallets_sorted[:amount]
-
-
-
-        candidates = generate_candidates(
-
-            truck,
-
-            trial
+            message="No physical loading solution found."
 
         )
 
 
 
-        legal_candidates = []
+    legal_solutions = []
+
+    rejected = []
 
 
 
-        for candidate in candidates:
+    for layout in candidates:
 
 
-            legal, axle = evaluate_layout(
 
-                truck,
+        legal, axle_report, errors = check_legal(
 
-                candidate.layout
+            truck,
+
+            layout
+
+        )
+
+
+
+        if legal:
+
+
+            layout.score = optimisation_score(
+
+                layout
 
             )
 
 
-            if legal:
+            legal_solutions.append(
 
+                (
 
-                legal_candidates.append(
+                    layout,
 
-                    (
-
-                        candidate.layout,
-
-                        axle
-
-                    )
+                    axle_report
 
                 )
 
+            )
 
 
-        if legal_candidates:
+        else:
 
 
-            best_layout, best_axle = sorted(
+            rejected.append(
 
-                legal_candidates,
+                {
 
-                key=lambda x:
+                    "pallets": layout.pallet_count,
 
-                layout_priority(
+                    "pattern": layout.pattern_name,
 
-                    x[0],
+                    "reason": "; ".join(errors)
 
-                    x[1]
-
-                ),
-
-                reverse=True
-
-            )[0]
-
-
-
-            loaded_ids = set(
-
-                id(p)
-
-                for p in best_layout.pallets
+                }
 
             )
 
 
-
-            rejected = [
-
-                p
-
-                for p in pallets
-
-                if id(p)
-
-                not in loaded_ids
-
-            ]
-
-
-
-            result.best = [
-
-                best_layout
-
-            ]
-
-
-            result.axle_report = best_axle
-
-
-            result.loaded_pallets = (
-
-                best_layout.pallets
-
-            )
-
-
-            result.rejected_pallets = rejected
-
-
-            result.success = True
-
-
-            result.message = (
-
-                "Legal loading solution found"
-
-            )
-
-
-            return result
 
 
 
@@ -367,26 +328,56 @@ def optimize_load(
     # No legal solution
     # ------------------------------------------------------
 
+    if not legal_solutions:
 
-    for pallet in pallets:
 
 
-        pallet.reason_not_loaded = (
+        return OptimizationResult(
 
-            "Axle or gross weight exceeded"
+            success=False,
+
+            message=(
+
+                "No legal loading solution found."
+
+            ),
+
+            rejected=rejected
 
         )
 
 
 
-    result.rejected_pallets = pallets
 
 
-    result.message = (
+    # ------------------------------------------------------
+    # Select best
+    # ------------------------------------------------------
 
-        "No legal loading solution found"
+    legal_solutions.sort(
+
+        key=lambda x:
+
+            optimisation_score(x[0]),
+
+        reverse=True
 
     )
 
 
-    return result
+
+    best_layout, best_axle = legal_solutions[0]
+
+
+
+    return OptimizationResult(
+
+        success=True,
+
+        best=[best_layout],
+
+        axle_report=best_axle,
+
+        message="Legal loading solution found."
+
+    )
