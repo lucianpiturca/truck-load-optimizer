@@ -146,7 +146,7 @@ def calculate_trailer_reactions(truck, pallets):
 
 def calculate_tractor_axles(truck, kingpin_load):
 
-
+    raise Exception("10/90 AXLE SPLIT ACTIVE")
     # Kingpin load distribution
     #
     # European tractor approximation:
