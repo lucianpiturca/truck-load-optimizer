@@ -86,7 +86,7 @@ CURTAINSIDER = Truck(
     name="Curtainsider",
 
 
-    trailer_length=13.60,
+    trailer_length=13.55,
 
     trailer_width=2.45,
 
