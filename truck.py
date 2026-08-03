@@ -195,7 +195,7 @@ CURTAINSIDER = Truck(
 
     empty_axles=[
 
-        5200,
+        5190,
 
         2800,
 
@@ -283,7 +283,7 @@ FRIGO = Truck(
 
     empty_axles=[
 
-        5400,
+        5380,
 
         3800,
 

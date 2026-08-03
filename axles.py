@@ -1,25 +1,23 @@
 # ==========================================================
 # axles.py
 # Truck Load Optimizer
-# Axle load calculation
+# Axle weight calculation
 # ==========================================================
 
 
-from typing import List
+def get_pallet_centre_from_kingpin(
 
+    truck,
 
+    pallet
 
-# ==========================================================
-# BASIC HELPERS
-# ==========================================================
-
-
-def pallet_position(pallet):
+):
 
     """
-    Returns pallet centre position in metres
-    from trailer front.
+    Pallet centre position measured from kingpin.
 
+    Trailer front is behind the kingpin by
+    trailer_front_offset.
     """
 
     return (
@@ -30,49 +28,59 @@ def pallet_position(pallet):
 
         pallet.draw_length / 2
 
+        -
+
+        truck.trailer_front_offset
+
     )
 
 
 
-def trailer_to_bogie_distance(truck):
-
-    """
-    Distance from trailer front
-    to centre of tridem bogie.
-
-    """
-
-    return truck.bogie_position
-
-
-
 # ==========================================================
-# CARGO MOMENT
+# CARGO CENTRE OF GRAVITY
 # ==========================================================
 
 
-def cargo_moment(
+def calculate_cargo_cg(
+
+    truck,
 
     pallets
 
 ):
 
-    """
 
-    Total cargo moment around trailer front.
+    if not pallets:
 
-    """
+        return 0
+
+
+
+    total_weight = sum(
+
+        p.weight
+
+        for p in pallets
+
+    )
+
+
+    if total_weight == 0:
+
+        return 0
+
+
 
     moment = 0
 
-
-    weight = 0
 
 
     for pallet in pallets:
 
 
-        pos = pallet_position(
+        position = get_pallet_centre_from_kingpin(
+
+            truck,
 
             pallet
 
@@ -85,24 +93,22 @@ def cargo_moment(
 
             *
 
-            pos
+            position
 
         )
 
 
-        weight += pallet.weight
 
-
-    return weight, moment
+    return moment / total_weight
 
 
 
 # ==========================================================
-# TRAILER BOGIE LOAD
+# TRAILER SUPPORT REACTIONS
 # ==========================================================
 
 
-def calculate_trailer_bogie_load(
+def calculate_kingpin_and_bogie_load(
 
     truck,
 
@@ -112,97 +118,33 @@ def calculate_trailer_bogie_load(
 
     """
 
-    Calculates how much cargo weight
-    reaches the trailer bogie.
+    Trailer is treated as a beam:
+
+    Kingpin support = 0m
+
+    Bogie support = bogie_position
+
 
     """
 
-    total_weight, moment = cargo_moment(
-
-        pallets
-
-    )
 
 
-    if total_weight == 0:
+    cargo_weight = sum(
 
-        return 0
+        p.weight
 
-
-
-    cg = moment / total_weight
-
-
-
-    bogie = truck.bogie_position
-
-
-
-    # Simple supported beam model:
-    #
-    # front support = kingpin
-    # rear support = bogie centre
-    #
-
-    bogie_share = (
-
-        total_weight
-
-        *
-
-        cg
-
-        /
-
-        bogie
+        for p in pallets
 
     )
 
 
-    return min(
+    if cargo_weight == 0:
 
-        total_weight,
-
-        max(
-
-            0,
-
-            bogie_share
-
-        )
-
-    )
+        return 0, 0
 
 
 
-# ==========================================================
-# KINGPIN LOAD
-# ==========================================================
-
-
-def calculate_kingpin_load(
-
-    truck,
-
-    pallets
-
-):
-
-
-    total_weight, moment = cargo_moment(
-
-        pallets
-
-    )
-
-
-    if total_weight == 0:
-
-        return 0
-
-
-
-    bogie_load = calculate_trailer_bogie_load(
+    cg = calculate_cargo_cg(
 
         truck,
 
@@ -211,9 +153,30 @@ def calculate_kingpin_load(
     )
 
 
-    kingpin = (
 
-        total_weight
+    bogie_distance = truck.bogie_position
+
+
+
+    bogie_load = (
+
+        cargo_weight
+
+        *
+
+        cg
+
+        /
+
+        bogie_distance
+
+    )
+
+
+
+    kingpin_load = (
+
+        cargo_weight
 
         -
 
@@ -222,11 +185,40 @@ def calculate_kingpin_load(
     )
 
 
-    return max(
+
+    # safety limits
+
+    bogie_load = max(
 
         0,
 
-        kingpin
+        min(
+
+            cargo_weight,
+
+            bogie_load
+
+        )
+
+    )
+
+
+    kingpin_load = (
+
+        cargo_weight
+
+        -
+
+        bogie_load
+
+    )
+
+
+    return (
+
+        kingpin_load,
+
+        bogie_load
 
     )
 
@@ -237,7 +229,7 @@ def calculate_kingpin_load(
 # ==========================================================
 
 
-def calculate_tractor_axles(
+def calculate_tractor_distribution(
 
     truck,
 
@@ -247,14 +239,7 @@ def calculate_tractor_axles(
 
     """
 
-    Splits kingpin load between:
-
-    axle 1
-
-    axle 2
-
-
-    Based on European 4x2 tractor geometry.
+    Kingpin load split between tractor axles.
 
     """
 
@@ -264,14 +249,11 @@ def calculate_tractor_axles(
 
 
 
-    distance_from_front_axle = (
-
-        truck.kingpin_offset
-
-    )
+    kingpin_distance = truck.kingpin_offset
 
 
-    front_share = (
+
+    front_load = (
 
         kingpin_load
 
@@ -283,7 +265,7 @@ def calculate_tractor_axles(
 
             -
 
-            distance_from_front_axle
+            kingpin_distance
 
         )
 
@@ -294,35 +276,33 @@ def calculate_tractor_axles(
     )
 
 
-    drive_share = (
+    drive_load = (
 
         kingpin_load
 
         -
 
-        front_share
+        front_load
 
     )
 
 
     return (
 
-        front_share,
+        front_load,
 
-        drive_share
+        drive_load
 
     )
 
 
 
 # ==========================================================
-# TRAILER AXLES
+# TRAILER TRIDEM
 # ==========================================================
 
 
-def calculate_trailer_axles(
-
-    truck,
+def calculate_tridem_distribution(
 
     bogie_load
 
@@ -330,7 +310,7 @@ def calculate_trailer_axles(
 
     """
 
-    Splits tridem bogie load equally.
+    Equal tridem axle distribution.
 
     """
 
@@ -354,7 +334,7 @@ def calculate_trailer_axles(
 
 
 # ==========================================================
-# MAIN FUNCTION
+# MAIN API
 # ==========================================================
 
 
@@ -367,14 +347,7 @@ def calculate_axle_weights(
 ):
 
 
-    cargo_weight, _ = cargo_moment(
-
-        pallets
-
-    )
-
-
-    kingpin = calculate_kingpin_load(
+    kingpin, bogie = calculate_kingpin_and_bogie_load(
 
         truck,
 
@@ -383,17 +356,7 @@ def calculate_axle_weights(
     )
 
 
-    bogie = calculate_trailer_bogie_load(
-
-        truck,
-
-        pallets
-
-    )
-
-
-
-    tractor_front, tractor_drive = calculate_tractor_axles(
+    front, drive = calculate_tractor_distribution(
 
         truck,
 
@@ -402,9 +365,7 @@ def calculate_axle_weights(
     )
 
 
-    trailer_axles = calculate_trailer_axles(
-
-        truck,
+    tridem = calculate_tridem_distribution(
 
         bogie
 
@@ -412,21 +373,17 @@ def calculate_axle_weights(
 
 
 
-    empty = truck.empty_axles
+    axle_weights = [
 
+        truck.empty_axles[0] + front,
 
+        truck.empty_axles[1] + drive,
 
-    axle_values = [
+        truck.empty_axles[2] + tridem[0],
 
-        empty[0] + tractor_front,
+        truck.empty_axles[3] + tridem[1],
 
-        empty[1] + tractor_drive,
-
-        empty[2] + trailer_axles[0],
-
-        empty[3] + trailer_axles[1],
-
-        empty[4] + trailer_axles[2]
+        truck.empty_axles[4] + tridem[2]
 
     ]
 
@@ -436,12 +393,12 @@ def calculate_axle_weights(
 
 
 
-    for i, value in enumerate(axle_values):
+    for i, weight in enumerate(axle_weights):
 
 
         report[f"Axle {i+1}"] = {
 
-            "weight": value,
+            "weight": weight,
 
             "limit": truck.axle_limits[i]
 
@@ -449,33 +406,21 @@ def calculate_axle_weights(
 
 
 
-    total = sum(
+    report["total"] = sum(
 
-        axle_values
+        axle_weights
 
     )
 
 
 
-    report["total"] = total
+    report["centre_of_gravity"] = calculate_cargo_cg(
 
+        truck,
 
+        pallets
 
-    if cargo_weight:
-
-        report["centre_of_gravity"] = (
-
-            cargo_moment(pallets)[1]
-
-            /
-
-            cargo_weight
-
-        )
-
-    else:
-
-        report["centre_of_gravity"] = 0
+    )
 
 
 
