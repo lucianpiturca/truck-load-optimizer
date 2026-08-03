@@ -5,7 +5,6 @@
 
 
 from dataclasses import dataclass, field
-from typing import List
 
 
 from packing import (
@@ -45,44 +44,91 @@ def check_legal(truck, layout):
 
 
     valid, physical_errors = validate_layout(
+
         layout
+
     )
 
 
     if not valid:
 
         errors.extend(
+
             physical_errors
+
         )
+
 
 
     axle_report = calculate_axle_weights(
+
         truck,
+
         layout.pallets
+
     )
 
 
-    total = axle_report["total"]
+
+    total_weight = axle_report.get(
+
+        "total",
+
+        0
+
+    )
 
 
-    if total > truck.legal_gross:
+    if total_weight > truck.legal_gross:
 
         errors.append(
-            f"Gross weight exceeded ({total:.0f} kg / {truck.legal_gross:.0f} kg)"
+
+            f"Gross weight exceeded "
+
+            f"({total_weight:.0f} kg / "
+
+            f"{truck.legal_gross:.0f} kg)"
+
         )
 
 
-    for name, axle in axle_report.items():
+
+    for axle_name, axle in axle_report.items():
+
+
+        # only real axle entries
 
         if not isinstance(axle, dict):
+
             continue
+
+
+        if (
+
+            "weight" not in axle
+
+            or
+
+            "limit" not in axle
+
+        ):
+
+            continue
+
 
 
         if axle["weight"] > axle["limit"]:
 
             errors.append(
-                f"{name} exceeded ({axle['weight']:.0f} kg / {axle['limit']:.0f} kg)"
+
+                f"{axle_name} exceeded "
+
+                f"({axle['weight']:.0f} kg / "
+
+                f"{axle['limit']:.0f} kg)"
+
             )
+
 
 
     return (
@@ -98,7 +144,7 @@ def check_legal(truck, layout):
 
 
 # ==========================================================
-# BALANCE SCORE
+# SCORE
 # ==========================================================
 
 
@@ -108,17 +154,29 @@ def score_layout(layout, axle_report):
     score = 0
 
 
-    # pallets always first
+    score += (
 
-    score += layout.pallet_count * 100000
+        layout.pallet_count
+
+        *
+
+        100000
+
+    )
 
 
-
-    # penalise axle usage
+    # reward balanced axles
 
     for name, axle in axle_report.items():
 
+
         if not isinstance(axle, dict):
+
+            continue
+
+
+        if "weight" not in axle:
+
             continue
 
 
@@ -137,13 +195,22 @@ def score_layout(layout, axle_report):
 
             utilisation ** 4
 
-        ) * 50000
+            *
+
+            50000
+
+        )
 
 
+    score -= (
 
-    # prefer shorter loading length
+        layout.used_length
 
-    score -= layout.used_length * 10
+        *
+
+        10
+
+    )
 
 
     return score
@@ -159,16 +226,20 @@ def optimize_load(truck, cargo):
 
 
     candidates = create_loading_candidates(
+
         truck,
+
         cargo
+
     )
 
 
     if not candidates:
 
+
         return OptimizationResult(
 
-            False,
+            success=False,
 
             message="No physical loading solution found."
 
@@ -186,24 +257,33 @@ def optimize_load(truck, cargo):
 
 
         ok, axle_report, errors = check_legal(
+
             truck,
+
             layout
+
         )
+
 
 
         if ok:
 
+
             legal.append(
 
                 (
+
                     layout,
+
                     axle_report
+
                 )
 
             )
 
 
         else:
+
 
             rejected.append(
 
@@ -241,8 +321,11 @@ def optimize_load(truck, cargo):
         key=lambda x:
 
             score_layout(
+
                 x[0],
+
                 x[1]
+
             ),
 
         reverse=True
@@ -251,16 +334,17 @@ def optimize_load(truck, cargo):
 
 
 
-    layout, axle_report = legal[0]
+    best_layout, best_axles = legal[0]
+
 
 
     return OptimizationResult(
 
         success=True,
 
-        best=[layout],
+        best=[best_layout],
 
-        axle_report=axle_report,
+        axle_report=best_axles,
 
         message="Legal loading solution found.",
 
