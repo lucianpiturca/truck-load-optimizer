@@ -20,25 +20,118 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    :root { --navy: #102A43; --blue: #1F6FEB; --ink: #243B53; --muted: #627D98; --line: #D9E2EC; }
-    .stApp { background: #F5F7FA; color: var(--ink); }
-    [data-testid="stSidebar"] { background: #102A43; }
-    [data-testid="stSidebar"] * { color: #F0F4F8; }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label { color: #F0F4F8 !important; font-weight: 600 !important; }
-    [data-testid="stSidebar"] [data-testid="stRadio"] label:hover { color: #FFFFFF !important; }
-    [data-testid="stSidebar"] .stCaption { color: #BCCCDC !important; }
-    .block-container { max-width: 1500px; padding-top: 2rem; padding-bottom: 3rem; }
-    .hero { background: linear-gradient(115deg, #102A43, #1F4E79); border-radius: 18px; color: white; padding: 1.7rem 2rem; margin-bottom: 1.6rem; box-shadow: 0 12px 28px rgba(16,42,67,.15); }
-    .hero h1 { font-size: 2rem; margin: 0; letter-spacing: -.03em; }
-    .hero p { color: #D9EAF7; margin: .45rem 0 0; font-size: 1rem; }
-    .section-label { color: #486581; font-size: .78rem; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; margin-bottom: .2rem; }
-    .stButton > button { border-radius: 8px; font-weight: 650; min-height: 2.55rem; }
-    .stButton > button[kind="primary"] { background: #1F6FEB; border-color: #1F6FEB; }
-    .stButton > button[kind="primary"]:hover { background: #175BC4; border-color: #175BC4; }
-    [data-testid="stMetric"] { background: white; border: 1px solid #D9E2EC; border-radius: 12px; padding: .65rem .85rem; }
-    [data-testid="stMetricLabel"] { color: #627D98; font-size: .82rem; }
-    [data-testid="stMetricValue"] { color: #102A43; font-size: 1.5rem; }
-    .stDataFrame { border: 1px solid #D9E2EC; border-radius: 10px; overflow: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+    :root {
+        --paper: #FAFAF6;
+        --panel: #FFFFFF;
+        --ink: #1B2430;
+        --steel: #5C6B7A;
+        --blueprint: #2B5D8C;
+        --blueprint-deep: #0E3450;
+        --grid-line: #DAE5EE;
+        --amber: #E2932F;
+        --amber-deep: #B9741A;
+        --ok: #2F8F5B;
+        --danger: #C6432E;
+        --line: #E3E8EC;
+    }
+
+    html, body, [class*="css"] { font-family: 'IBM Plex Sans', -apple-system, sans-serif; }
+    .stApp { background: var(--paper); color: var(--ink); }
+    .block-container { max-width: 1500px; padding-top: 1.6rem; padding-bottom: 3rem; }
+
+    h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; letter-spacing: -.01em; }
+
+    /* ---------- Sidebar ---------- */
+    [data-testid="stSidebar"] { background: var(--blueprint-deep); border-right: 1px solid rgba(255,255,255,.06); }
+    [data-testid="stSidebar"] * { color: #EAF1F7; }
+    [data-testid="stSidebar"] h2 { font-family: 'Space Grotesk', sans-serif; }
+    [data-testid="stSidebar"] .stCaption { color: #8FA9BE !important; font-size: .72rem; letter-spacing: .07em; text-transform: uppercase; }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label { color: #EAF1F7 !important; font-weight: 600 !important; }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label:hover { color: var(--amber) !important; }
+    [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,.1); }
+    [data-testid="stSidebar"] strong { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #FFFFFF; }
+
+    /* ---------- Hero / title block (signature element) ---------- */
+    .hero {
+        position: relative;
+        background: var(--panel);
+        background-image:
+            linear-gradient(var(--grid-line) 1px, transparent 1px),
+            linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+        background-size: 22px 22px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 1.7rem 2rem;
+        margin-bottom: 1.8rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 1.2rem;
+    }
+    .hero::before, .hero::after {
+        content: ""; position: absolute; width: 16px; height: 16px; border: 2px solid var(--amber);
+    }
+    .hero::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+    .hero::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+    .hero h1 { font-size: 2.05rem; margin: 0; color: var(--ink); }
+    .hero p { color: var(--steel); margin: .5rem 0 0; font-size: .97rem; max-width: 44ch; }
+    .hero .stamp {
+        text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: .72rem;
+        color: var(--blueprint); line-height: 1.8; white-space: nowrap;
+        border-left: 1px dashed var(--grid-line); padding-left: 1.2rem;
+    }
+    .hero .stamp b { color: var(--ink); }
+
+    /* ---------- Section labels ---------- */
+    .section-label {
+        color: var(--blueprint); font-family: 'IBM Plex Mono', monospace; font-size: .74rem;
+        font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+        margin: 1.7rem 0 .55rem; display: flex; align-items: center; gap: .5rem;
+    }
+    .section-label::before { content: ""; width: 8px; height: 8px; background: var(--amber); flex-shrink: 0; }
+
+    /* ---------- Buttons ---------- */
+    .stButton > button {
+        border-radius: 6px; font-weight: 600; min-height: 2.6rem; border: 1px solid var(--line);
+        color: var(--ink); background: var(--panel);
+    }
+    .stButton > button:hover { border-color: var(--blueprint); color: var(--blueprint); }
+    .stButton > button[kind="primary"] { background: var(--amber); border-color: var(--amber-deep); color: #1B2430; }
+    .stButton > button[kind="primary"]:hover { background: var(--amber-deep); border-color: var(--amber-deep); color: #FFFFFF; }
+    .stButton > button:disabled { opacity: .45; }
+
+    /* ---------- Metrics ---------- */
+    [data-testid="stMetric"] {
+        background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--blueprint);
+        border-radius: 6px; padding: .7rem .9rem;
+    }
+    [data-testid="stMetricLabel"] { color: var(--steel); font-size: .74rem; text-transform: uppercase; letter-spacing: .07em; }
+    [data-testid="stMetricValue"] { color: var(--ink); font-size: 1.45rem; font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+
+    /* ---------- Form / inputs ---------- */
+    [data-testid="stForm"] { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.2rem 1.4rem 0.6rem; }
+    [data-testid="stTextInput"] input, [data-testid="stNumberInput"] input, [data-testid="stSelectbox"] div[data-baseweb="select"] {
+        border-radius: 6px !important;
+    }
+    [data-testid="stNumberInput"] input { font-family: 'IBM Plex Mono', monospace; }
+
+    /* ---------- Table ---------- */
+    .stDataFrame { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+    .stDataFrame [data-testid="stElementToolbar"] { font-family: 'IBM Plex Mono', monospace; }
+
+    /* ---------- Alerts ---------- */
+    [data-testid="stAlert"] { border-radius: 6px; border: 1px solid var(--line); }
+
+    /* ---------- Code / report block ---------- */
+    [data-testid="stCodeBlock"] pre, [data-testid="stCodeBlock"] code {
+        font-family: 'IBM Plex Mono', monospace !important; font-size: .82rem;
+        background: var(--blueprint-deep) !important; color: #DCEBF5 !important; border-radius: 6px;
+    }
+
+    hr { border-color: var(--line); }
     </style>
     """,
     unsafe_allow_html=True,
@@ -68,10 +161,17 @@ with st.sidebar:
     st.caption("Static, level-ground planning model. Confirm final axle weights on an approved weighbridge.")
 
 st.markdown(
-    """
+    f"""
     <div class="hero">
-        <h1>Truck Load Optimizer</h1>
-        <p>Build a practical loading plan, verify axle limits, and visualize the finished trailer.</p>
+        <div>
+            <h1>Truck Load Optimizer</h1>
+            <p>Build a practical loading plan, verify axle limits, and visualize the finished trailer.</p>
+        </div>
+        <div class="stamp">
+            VEHICLE&nbsp;&nbsp;<b>{truck_name.upper()}</b><br>
+            PAYLOAD LIMIT&nbsp;&nbsp;<b>{truck.legal_gross:,.0f} KG</b><br>
+            BASIS&nbsp;&nbsp;<b>STATIC · LEVEL GROUND</b>
+        </div>
     </div>
     """,
     unsafe_allow_html=True,

@@ -8,9 +8,12 @@ from packing import Layout
 from truck import Truck
 
 
-PALETTE = ["#4C78A8", "#59A14F", "#E39C37", "#AF7AA1", "#E15759", "#76B7B2"]
-NAVY = "#102A43"
-GRID = "#D9E2EC"
+PALETTE = ["#2B5D8C", "#E2932F", "#2F8F5B", "#8B5FBF", "#4FA8A0", "#C6432E"]
+INK = "#1B2430"
+STEEL = "#5C6B7A"
+GRID = "#DAE5EE"
+FONT_FAMILY = "IBM Plex Sans, sans-serif"
+MONO_FAMILY = "IBM Plex Mono, monospace"
 
 
 def pallet_font_size(layout):
@@ -49,7 +52,7 @@ def create_loading_figure(truck: Truck, layout: Layout):
         x1=truck.trailer_length,
         y0=0,
         y1=truck.trailer_width,
-        line=dict(color=NAVY, width=2.5),
+        line=dict(color=INK, width=2),
         fillcolor="#FFFFFF",
         layer="below",
     )
@@ -65,8 +68,8 @@ def create_loading_figure(truck: Truck, layout: Layout):
         )
 
     for x, label, colour in (
-        (truck.trailer_front_offset, "KINGPIN", "#7B8794"),
-        (truck.trailer_front_offset + truck.bogie_position, "TRIDEM CENTRE", "#D64545"),
+        (truck.trailer_front_offset, "KINGPIN", STEEL),
+        (truck.trailer_front_offset + truck.bogie_position, "TRIDEM CENTRE", "#B9741A"),
     ):
         if 0 < x < truck.trailer_length:
             fig.add_shape(
@@ -83,7 +86,7 @@ def create_loading_figure(truck: Truck, layout: Layout):
                 text=label,
                 showarrow=False,
                 yanchor="bottom",
-                font=dict(size=9, color=colour),
+                font=dict(size=9, color=colour, family=MONO_FAMILY),
             )
 
     hover_x, hover_y, hover_text = [], [], []
@@ -105,7 +108,7 @@ def create_loading_figure(truck: Truck, layout: Layout):
             y=(y0 + y1) / 2,
             text=pallet_label(pallet, pallet_name),
             showarrow=False,
-            font=dict(size=pallet_font_size(layout), color="#FFFFFF"),
+            font=dict(size=pallet_font_size(layout), color="#FFFFFF", family=FONT_FAMILY),
             align="center",
         )
         hover_x.append((x0 + x1) / 2)
@@ -136,7 +139,7 @@ def create_loading_figure(truck: Truck, layout: Layout):
         text="FRONT BULKHEAD",
         showarrow=False,
         xanchor="left",
-        font=dict(size=11, color=NAVY),
+        font=dict(size=11, color=INK, family=MONO_FAMILY),
     )
     fig.add_annotation(
         x=truck.trailer_length,
@@ -144,7 +147,7 @@ def create_loading_figure(truck: Truck, layout: Layout):
         text="REAR DOORS",
         showarrow=False,
         xanchor="right",
-        font=dict(size=11, color=NAVY),
+        font=dict(size=11, color=INK, family=MONO_FAMILY),
     )
     fig.update_xaxes(visible=False, range=[-0.08, truck.trailer_length + 0.08])
     fig.update_yaxes(
@@ -157,8 +160,8 @@ def create_loading_figure(truck: Truck, layout: Layout):
         height=390,
         margin=dict(l=5, r=5, t=38, b=30),
         showlegend=False,
-        plot_bgcolor="#F5F7FA",
-        paper_bgcolor="#F5F7FA",
-        hoverlabel=dict(bgcolor="#102A43", font_color="white", font_size=12),
+        plot_bgcolor="#F3F7FA",
+        paper_bgcolor="#F3F7FA",
+        hoverlabel=dict(bgcolor="#0E3450", font_color="white", font_size=12, font_family=FONT_FAMILY),
     )
     return fig
