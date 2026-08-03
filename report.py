@@ -1,8 +1,9 @@
 # ==========================================================
 # report.py
 # Truck Load Optimizer
-# Text report generator
+# Report generator
 # ==========================================================
+
 
 
 def generate_report(truck, result):
@@ -11,14 +12,21 @@ def generate_report(truck, result):
     lines = []
 
 
-    lines.append("🚛 " + truck.name)
+    lines.append(
+
+        "🚛 " + truck.name
+
+    )
+
 
     lines.append("")
 
 
+
     # ======================================================
-    # NO SOLUTION
+    # FAILURE REPORT
     # ======================================================
+
 
     if not result.success:
 
@@ -33,20 +41,182 @@ def generate_report(truck, result):
         lines.append("")
 
 
-        if hasattr(result, "message"):
+        lines.append(
 
-            lines.append(
+            result.message
 
-                result.message
-
-            )
+        )
 
 
-        if hasattr(result, "failures"):
+
+        failed = getattr(
+
+            result,
+
+            "failed_axle_report",
+
+            {}
+
+        )
+
+
+        if failed:
 
 
             lines.append("")
 
+            lines.append(
+
+                "⚖️ Failed Load Axle Check"
+
+            )
+
+
+
+            for i in range(1, 6):
+
+
+                axle = failed.get(
+
+                    f"Axle {i}"
+
+                )
+
+
+                if axle:
+
+
+                    weight = axle.get(
+
+                        "weight",
+
+                        0
+
+                    )
+
+
+                    limit = axle.get(
+
+                        "limit",
+
+                        0
+
+                    )
+
+
+                    if weight <= limit:
+
+                        status = "🟢"
+
+                    else:
+
+                        status = "🔴"
+
+
+
+                    lines.append(
+
+                        f"{status} Axle {i}: "
+
+                        f"{weight:,.0f} kg / "
+
+                        f"{limit:,.0f} kg"
+
+                    )
+
+
+
+            lines.append("")
+
+
+            lines.append(
+
+                "🚛 Total Weight"
+
+            )
+
+
+            lines.append(
+
+                f"{failed.get('total',0):,.0f} kg / "
+
+                f"{truck.legal_gross:,.0f} kg"
+
+            )
+
+
+
+            if "centre_of_gravity" in failed:
+
+
+                lines.append("")
+
+
+                lines.append(
+
+                    f"📍 Centre of gravity: "
+
+                    f"{failed['centre_of_gravity']:.2f} m"
+
+                )
+
+
+
+            debug = failed.get(
+
+                "debug"
+
+            )
+
+
+            if debug:
+
+
+                lines.append("")
+
+                lines.append(
+
+                    "🔧 Axle Calculation Debug"
+
+                )
+
+
+                for key, value in debug.items():
+
+
+                    if isinstance(value, float):
+
+                        lines.append(
+
+                            f"{key}: {value:,.2f}"
+
+                        )
+
+                    else:
+
+                        lines.append(
+
+                            f"{key}: {value}"
+
+                        )
+
+
+
+        rejected = getattr(
+
+            result,
+
+            "rejected",
+
+            []
+
+        )
+
+
+        if rejected:
+
+
+            lines.append("")
 
             lines.append(
 
@@ -55,13 +225,21 @@ def generate_report(truck, result):
             )
 
 
-            for failure in result.failures:
+            for item in rejected:
+
 
                 lines.append(
 
-                    "- " + failure
+                    "- "
+
+                    f"{item['pallets']} pallets "
+
+                    f"({item['pattern']}): "
+
+                    f"{item['reason']}"
 
                 )
+
 
 
         return "\n".join(lines)
@@ -69,11 +247,8 @@ def generate_report(truck, result):
 
 
     # ======================================================
-    # SOLUTION
+    # SUCCESS REPORT
     # ======================================================
-
-
-    layout = result.best[0]
 
 
     lines.append(
@@ -83,30 +258,45 @@ def generate_report(truck, result):
     )
 
 
-    lines.append(
 
-        f"Loaded pallets: {len(layout.pallets)}"
-
-    )
+    if result.best:
 
 
-    lines.append(
+        layout = result.best[0]
 
-        f"Trailer used: {layout.used_length:.2f} m"
 
-    )
+        lines.append(
+
+            f"Loaded pallets: "
+
+            f"{layout.pallet_count}"
+
+        )
+
+
+        lines.append(
+
+            f"Trailer used: "
+
+            f"{layout.used_length:.2f} m"
+
+        )
+
 
 
     lines.append("")
 
 
 
-    # ======================================================
-    # AXLES
-    # ======================================================
+    axle_report = (
 
+        result.axle_report
 
-    axle_report = result.best[1]
+        if result.axle_report
+
+        else result.best[1]
+
+    )
 
 
 
@@ -115,6 +305,7 @@ def generate_report(truck, result):
         "⚖️ Axle Weight Report"
 
     )
+
 
 
     for i in range(1, 6):
@@ -144,6 +335,7 @@ def generate_report(truck, result):
                 status = "🔴"
 
 
+
             lines.append(
 
                 f"{status} Axle {i}: "
@@ -157,6 +349,7 @@ def generate_report(truck, result):
 
 
     lines.append("")
+
 
 
     total = axle_report.get(
@@ -200,26 +393,14 @@ def generate_report(truck, result):
     lines.append("")
 
 
-    cg = axle_report.get(
-
-        "centre_of_gravity",
-
-        0
-
-    )
-
-
     lines.append(
 
-        f"📍 Centre of gravity: {cg:.2f} m"
+        f"📍 Centre of gravity: "
+
+        f"{axle_report.get('centre_of_gravity',0):.2f} m"
 
     )
 
-
-
-    # ======================================================
-    # DEBUG SECTION
-    # ======================================================
 
 
     debug = axle_report.get(
@@ -241,68 +422,23 @@ def generate_report(truck, result):
         )
 
 
-        lines.append(
+        for key, value in debug.items():
 
-            f"Cargo weight: "
+            if isinstance(value, float):
 
-            f"{debug.get('cargo_weight',0):,.0f} kg"
+                lines.append(
 
-        )
+                    f"{key}: {value:,.2f}"
 
+                )
 
-        lines.append(
+            else:
 
-            f"Cargo CG from trailer front: "
+                lines.append(
 
-            f"{debug.get('cargo_cg_from_trailer_front',0):.2f} m"
+                    f"{key}: {value}"
 
-        )
-
-
-        lines.append(
-
-            f"Kingpin load: "
-
-            f"{debug.get('kingpin_load',0):,.0f} kg"
-
-        )
-
-
-        lines.append(
-
-            f"Bogie load: "
-
-            f"{debug.get('bogie_load',0):,.0f} kg"
-
-        )
-
-
-
-    # ======================================================
-    # NOT LOADED
-    # ======================================================
-
-
-    if hasattr(layout, "not_loaded") and layout.not_loaded:
-
-
-        lines.append("")
-
-        lines.append(
-
-            "⚠️ Cargo Not Loaded"
-
-        )
-
-
-        for item in layout.not_loaded:
-
-
-            lines.append(
-
-                f"- {item}"
-
-            )
+                )
 
 
 
