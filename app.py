@@ -321,127 +321,73 @@ if st.button(
 
 
 # ==========================================================
-# OPTIMIZE
+# OPTIMIZE + VISUALISATION
 # ==========================================================
-
 
 st.divider()
 
+left, right = st.columns([1, 3])
 
+with left:
 
-if st.button(
+    if st.button(
+        "🚀 Optimize Load",
+        type="primary"
+    ):
 
-    "🚀 Optimize Load",
+        st.session_state.result = optimize_load(
+            truck,
+            st.session_state.cargo
+        )
 
-    type="primary"
+with right:
 
-):
+    if (
+        st.session_state.result
+        and st.session_state.result.success
+    ):
 
+        layout = st.session_state.result.best[0]
 
-    st.session_state.result = optimize_load(
+        fig = create_loading_figure(
+            truck,
+            layout
+        )
 
-        truck,
-
-        st.session_state.cargo
-
-    )
-
-
+        st.plotly_chart(
+            fig,
+            use_container_width=False,
+            config={
+                "displayModeBar": False
+            }
+        )
 
 # ==========================================================
-# OUTPUT
+# REPORT
 # ==========================================================
-
 
 if st.session_state.result:
 
-
-
     result = st.session_state.result
 
-
-
-    st.subheader(
-
-        "📊 Loading Result"
-
-    )
-
-
+    st.subheader("📊 Loading Result")
 
     if result.success:
 
-
-
-        layout = result.best[0]
-
-
-
-        col1, col2 = st.columns(
-
-            [1,2]
-
-        )
-
-
-        with col1:
-
-
-            st.text(
-
-                generate_report(
-
-                    truck,
-
-                    result
-
-                )
-
-            )
-
-
-
-        with col2:
-
-
-            fig = create_loading_figure(
-
+        st.text(
+            generate_report(
                 truck,
-
-                layout
-
+                result
             )
-
-
-            st.plotly_chart(
-    		fig,
-    		use_container_width=False,
-    		config={
-        	    "displayModeBar": False
-    		}
-	    )
-
-
+        )
 
     else:
 
-
-        st.error(
-
-            result.message
-
-        )
-
-
+        st.error(result.message)
 
         st.text(
-
             generate_report(
-
                 truck,
-
                 result
-
             )
-
         )
