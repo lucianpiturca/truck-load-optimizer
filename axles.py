@@ -5,10 +5,7 @@
 # ==========================================================
 
 
-# ==========================================================
-# TRAILER GEOMETRY
-# ==========================================================
-
+# Trailer geometry
 KINGPIN_TO_BOGIE_CENTER = 7.7
 FRONT_OVERHANG = 1.6
 
@@ -18,33 +15,18 @@ FRONT_OVERHANG = 1.6
 # PALLET POSITION
 # ==========================================================
 
-
 def pallet_position_from_kingpin(pallet):
 
-
-    # pallet.y is measured from trailer front
-
     pallet_center = (
-
         pallet.y
-
         +
-
         pallet.draw_length / 2
-
     )
 
-
-    # convert to kingpin reference
-
     return (
-
         pallet_center
-
         -
-
         FRONT_OVERHANG
-
     )
 
 
@@ -52,7 +34,6 @@ def pallet_position_from_kingpin(pallet):
 # ==========================================================
 # TRAILER BEAM CALCULATION
 # ==========================================================
-
 
 def calculate_trailer_loads(pallets):
 
@@ -70,17 +51,13 @@ def calculate_trailer_loads(pallets):
 
 
         x = pallet_position_from_kingpin(
-
             pallet
-
         )
 
 
         weight = pallet.weight
 
 
-
-        # Static beam reactions
 
         kingpin_force = (
 
@@ -132,17 +109,28 @@ def calculate_trailer_loads(pallets):
 
             {
 
-                "x": x,
+                "position_from_kingpin": x,
 
                 "weight": weight,
 
-                "kingpin": kingpin_force,
+                "kingpin_force": kingpin_force,
 
-                "bogie": bogie_force
+                "bogie_force": bogie_force
 
             }
 
         )
+
+
+
+    # Physical constraint:
+    # fifth wheel cannot have negative load
+
+    if kingpin_load < 0:
+
+        bogie_load += kingpin_load
+
+        kingpin_load = 0
 
 
 
@@ -162,15 +150,13 @@ def calculate_trailer_loads(pallets):
 # TRACTOR AXLES
 # ==========================================================
 
-
 def calculate_tractor_axles(truck, kingpin_load):
 
 
-    # Kingpin load distribution
-
-    # Steer axle: 10%
-
-    # Drive axle: 90%
+    kingpin_load = max(
+        0,
+        kingpin_load
+    )
 
 
     steer_transfer = (
@@ -209,7 +195,6 @@ def calculate_tractor_axles(truck, kingpin_load):
 # TRIDEM
 # ==========================================================
 
-
 def calculate_tridem_axles(bogie_load):
 
 
@@ -237,9 +222,8 @@ def calculate_tridem_axles(bogie_load):
 
 
 # ==========================================================
-# MAIN
+# MAIN AXLE CALCULATION
 # ==========================================================
-
 
 def calculate_axle_weights(truck, pallets):
 
@@ -258,6 +242,7 @@ def calculate_axle_weights(truck, pallets):
     )
 
 
+
     steer_transfer, drive_transfer = calculate_tractor_axles(
 
         truck,
@@ -265,6 +250,7 @@ def calculate_axle_weights(truck, pallets):
         kingpin_load
 
     )
+
 
 
     tridem = calculate_tridem_axles(
@@ -277,45 +263,15 @@ def calculate_axle_weights(truck, pallets):
 
     axle_weights = [
 
+        truck.empty_axles[0] + steer_transfer,
 
-        truck.empty_axles[0]
+        truck.empty_axles[1] + drive_transfer,
 
-        +
+        truck.empty_axles[2] + tridem[0],
 
-        steer_transfer,
+        truck.empty_axles[3] + tridem[1],
 
-
-
-        truck.empty_axles[1]
-
-        +
-
-        drive_transfer,
-
-
-
-        truck.empty_axles[2]
-
-        +
-
-        tridem[0],
-
-
-
-        truck.empty_axles[3]
-
-        +
-
-        tridem[1],
-
-
-
-        truck.empty_axles[4]
-
-        +
-
-        tridem[2]
-
+        truck.empty_axles[4] + tridem[2]
 
     ]
 
@@ -330,12 +286,9 @@ def calculate_axle_weights(truck, pallets):
 
         report[f"Axle {index+1}"] = {
 
-
             "weight": weight,
 
-
             "limit": truck.axle_limits[index]
-
 
         }
 
@@ -349,22 +302,16 @@ def calculate_axle_weights(truck, pallets):
 
 
 
-    # Average cargo CG from kingpin
-
     if cargo_weight > 0:
 
 
         cg = sum(
 
-            (
+            pallet_position_from_kingpin(p)
 
-                pallet_position_from_kingpin(p)
+            *
 
-                *
-
-                p.weight
-
-            )
+            p.weight
 
             for p in pallets
 
@@ -383,23 +330,17 @@ def calculate_axle_weights(truck, pallets):
 
     report["debug"] = {
 
-
         "cargo_weight": cargo_weight,
-
 
         "kingpin_load": kingpin_load,
 
-
         "bogie_load": bogie_load,
 
-
-        "kingpin_bogie_distance": KINGPIN_TO_BOGIE_CENTER,
-
+        "kingpin_to_bogie_center": KINGPIN_TO_BOGIE_CENTER,
 
         "front_overhang": FRONT_OVERHANG,
 
-
-        "pallet_calculations": debug_pallets
+        "pallet_count": len(pallets)
 
     }
 
