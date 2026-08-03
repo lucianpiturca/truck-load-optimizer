@@ -19,6 +19,11 @@ def generate_report(truck, result):
 
 
 
+    # ======================================================
+    # SUCCESS
+    # ======================================================
+
+
     if result.success:
 
 
@@ -41,6 +46,7 @@ def generate_report(truck, result):
 
 
         lines.append("")
+
 
 
         add_axle_report(
@@ -72,17 +78,51 @@ def generate_report(truck, result):
         )
 
 
+        # --------------------------------------------------
+        # Rejected alternatives
+        # --------------------------------------------------
+
+
+        if result.rejected:
+
+
+            lines.append("")
+
+            lines.append(
+
+                "⚠️ Other tested loads"
+
+            )
+
+
+            for item in result.rejected[:5]:
+
+
+                lines.append(
+
+                    f"- {item['pallets']} pallets "
+
+                    f"({item['pattern']}): "
+
+                    f"{item['reason']}"
+
+                )
+
+
+
         return "\n".join(lines)
 
 
 
-    # ------------------------------------------------------
+    # ======================================================
     # FAILURE
-    # ------------------------------------------------------
+    # ======================================================
 
 
     lines.append(
+
         "❌ No legal loading solution found."
+
     )
 
 
@@ -90,8 +130,37 @@ def generate_report(truck, result):
 
 
     lines.append(
+
         result.message
+
     )
+
+
+
+    if result.rejected:
+
+
+        lines.append("")
+
+        lines.append(
+
+            "Reasons tested:"
+
+        )
+
+
+        for item in result.rejected[:10]:
+
+
+            lines.append(
+
+                f"- {item['pallets']} pallets "
+
+                f"({item['pattern']}): "
+
+                f"{item['reason']}"
+
+            )
 
 
 
@@ -130,38 +199,13 @@ def generate_report(truck, result):
         )
 
 
-
-    if result.rejected:
-
-
-        lines.append("")
-
-        lines.append(
-            "Reasons tested:"
-        )
-
-
-        for item in result.rejected:
-
-
-            lines.append(
-
-                f"- {item['pallets']} pallets "
-
-                f"({item['pattern']}): "
-
-                f"{item['reason']}"
-
-            )
-
-
-
     return "\n".join(lines)
 
 
 
+
 # ==========================================================
-# AXLE REPORT
+# AXLES
 # ==========================================================
 
 
@@ -174,8 +218,6 @@ def add_axle_report(lines, axle_report, title):
 
     for name, axle in axle_report.items():
 
-
-        # Ignore total, debug, cg etc.
 
         if not isinstance(axle, dict):
 
@@ -202,13 +244,17 @@ def add_axle_report(lines, axle_report, title):
 
 
 
-        if weight <= limit:
+        icon = (
 
-            icon = "🟢"
+            "🟢"
 
-        else:
+            if weight <= limit
 
-            icon = "🔴"
+            else
+
+            "🔴"
+
+        )
 
 
 
@@ -221,6 +267,7 @@ def add_axle_report(lines, axle_report, title):
             f"{limit:,.0f} kg"
 
         )
+
 
 
 
@@ -244,7 +291,9 @@ def add_total_report(lines, axle_report):
     lines.append("")
 
     lines.append(
+
         "🚛 Total Weight"
+
     )
 
 
@@ -270,6 +319,7 @@ def add_total_report(lines, axle_report):
         f"40,000 kg"
 
     )
+
 
 
 
@@ -322,11 +372,6 @@ def add_cg_report(lines, axle_report):
 
 
         for key, value in debug.items():
-
-
-            if key == "pallet_calculations":
-
-                continue
 
 
             if isinstance(value, float):

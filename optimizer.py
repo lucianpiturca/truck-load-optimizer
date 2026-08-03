@@ -17,18 +17,34 @@ from axles import calculate_axle_weights
 
 
 
+# ==========================================================
+# RESULT
+# ==========================================================
+
+
 @dataclass
 class OptimizationResult:
 
+
     success: bool
 
-    best: list = field(default_factory=list)
 
-    axle_report: dict = field(default_factory=dict)
+    best: list = field(
+        default_factory=list
+    )
+
+
+    axle_report: dict = field(
+        default_factory=dict
+    )
+
 
     message: str = ""
 
-    rejected: list = field(default_factory=list)
+
+    rejected: list = field(
+        default_factory=list
+    )
 
 
 
@@ -37,10 +53,22 @@ class OptimizationResult:
 # ==========================================================
 
 
-def check_legal(truck, layout):
+def check_legal(
+
+    truck,
+
+    layout
+
+):
 
 
     errors = []
+
+
+
+    # ------------------------------------------------------
+    # Physical validation
+    # ------------------------------------------------------
 
 
     valid, physical_errors = validate_layout(
@@ -52,12 +80,18 @@ def check_legal(truck, layout):
 
     if not valid:
 
+
         errors.extend(
 
             physical_errors
 
         )
 
+
+
+    # ------------------------------------------------------
+    # Axles
+    # ------------------------------------------------------
 
 
     axle_report = calculate_axle_weights(
@@ -68,6 +102,11 @@ def check_legal(truck, layout):
 
     )
 
+
+
+    # ------------------------------------------------------
+    # Gross
+    # ------------------------------------------------------
 
 
     total_weight = axle_report.get(
@@ -81,6 +120,7 @@ def check_legal(truck, layout):
 
     if total_weight > truck.legal_gross:
 
+
         errors.append(
 
             f"Gross weight exceeded "
@@ -93,14 +133,24 @@ def check_legal(truck, layout):
 
 
 
+    # ------------------------------------------------------
+    # Axle limits
+    # ------------------------------------------------------
+
+
     for axle_name, axle in axle_report.items():
 
 
-        # only real axle entries
+        if not isinstance(
 
-        if not isinstance(axle, dict):
+            axle,
+
+            dict
+
+        ):
 
             continue
+
 
 
         if (
@@ -118,6 +168,7 @@ def check_legal(truck, layout):
 
 
         if axle["weight"] > axle["limit"]:
+
 
             errors.append(
 
@@ -148,10 +199,21 @@ def check_legal(truck, layout):
 # ==========================================================
 
 
-def score_layout(layout, axle_report):
+def score_layout(
+
+    layout,
+
+    axle_report
+
+):
 
 
     score = 0
+
+
+
+    # Most important:
+    # maximum pallets
 
 
     score += (
@@ -165,19 +227,37 @@ def score_layout(layout, axle_report):
     )
 
 
-    # reward balanced axles
+
+    # Axle balance penalty
+
 
     for name, axle in axle_report.items():
 
 
-        if not isinstance(axle, dict):
+        if not isinstance(
+
+            axle,
+
+            dict
+
+        ):
 
             continue
 
 
-        if "weight" not in axle:
+
+        if (
+
+            "weight" not in axle
+
+            or
+
+            "limit" not in axle
+
+        ):
 
             continue
+
 
 
         utilisation = (
@@ -191,6 +271,9 @@ def score_layout(layout, axle_report):
         )
 
 
+
+        # Avoid loads close to axle limits
+
         score -= (
 
             utilisation ** 4
@@ -200,6 +283,10 @@ def score_layout(layout, axle_report):
             50000
 
         )
+
+
+
+    # Prefer compact loading
 
 
     score -= (
@@ -213,6 +300,7 @@ def score_layout(layout, axle_report):
     )
 
 
+
     return score
 
 
@@ -222,7 +310,13 @@ def score_layout(layout, axle_report):
 # ==========================================================
 
 
-def optimize_load(truck, cargo):
+def optimize_load(
+
+    truck,
+
+    cargo
+
+):
 
 
     candidates = create_loading_candidates(
@@ -232,6 +326,7 @@ def optimize_load(truck, cargo):
         cargo
 
     )
+
 
 
     if not candidates:
@@ -282,6 +377,7 @@ def optimize_load(truck, cargo):
             )
 
 
+
         else:
 
 
@@ -301,6 +397,11 @@ def optimize_load(truck, cargo):
 
 
 
+    # ------------------------------------------------------
+    # No legal solution
+    # ------------------------------------------------------
+
+
     if not legal:
 
 
@@ -316,15 +417,20 @@ def optimize_load(truck, cargo):
 
 
 
+    # ------------------------------------------------------
+    # Best solution
+    # ------------------------------------------------------
+
+
     legal.sort(
 
-        key=lambda x:
+        key=lambda item:
 
             score_layout(
 
-                x[0],
+                item[0],
 
-                x[1]
+                item[1]
 
             ),
 
