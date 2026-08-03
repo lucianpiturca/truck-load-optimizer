@@ -24,12 +24,8 @@ st.markdown(
     .stApp { background: #F5F7FA; color: var(--ink); }
     [data-testid="stSidebar"] { background: #102A43; }
     [data-testid="stSidebar"] * { color: #F0F4F8; }
-    [data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] > div { background: #F0F4F8 !important; border-color: #9FB3C8 !important; }
-    [data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] > div > div,
-    [data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] div,
-    [data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] span,
-    [data-testid="stSidebar"] [data-testid="stSelectbox"] div[data-baseweb="select"] input { color: #243B53 !important; -webkit-text-fill-color: #243B53 !important; opacity: 1 !important; font-weight: 600 !important; }
-    [data-baseweb="popover"] *, [role="listbox"] * { color: #243B53 !important; -webkit-text-fill-color: #243B53 !important; }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label { color: #F0F4F8 !important; font-weight: 600 !important; }
+    [data-testid="stSidebar"] [data-testid="stRadio"] label:hover { color: #FFFFFF !important; }
     [data-testid="stSidebar"] .stCaption { color: #BCCCDC !important; }
     .block-container { max-width: 1500px; padding-top: 2rem; padding-bottom: 3rem; }
     .hero { background: linear-gradient(115deg, #102A43, #1F4E79); border-radius: 18px; color: white; padding: 1.7rem 2rem; margin-bottom: 1.6rem; box-shadow: 0 12px 28px rgba(16,42,67,.15); }
@@ -58,7 +54,7 @@ with st.sidebar:
     st.caption("TRAILER LOAD PLANNING")
     st.divider()
     st.markdown("#### Vehicle profile")
-    truck_name = st.selectbox("Truck type", list(TRUCKS.keys()))
+    truck_name = st.radio("Truck type", list(TRUCKS.keys()), horizontal=True)
     truck = TRUCKS[truck_name]
     st.caption("Internal loading space")
     st.markdown(f"**{truck.trailer_length:.2f} m × {truck.trailer_width:.2f} m**")

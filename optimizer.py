@@ -6,6 +6,7 @@
 from dataclasses import dataclass, field
 
 from packing import (
+    clone_templates,
     create_loading_candidates,
     validate_layout
 )
@@ -33,6 +34,8 @@ class OptimizationResult:
     requested_pallets: int = 0
 
     loaded_pallets: int = 0
+
+    unloaded: list = field(default_factory=list)
 
 
 # ==========================================================
@@ -185,6 +188,17 @@ def optimize_load(truck, cargo):
 
     best_layout, best_axles = legal[0]
 
+    loaded_units = {
+        (p.description, p.unit_number)
+        for p in best_layout.pallets
+    }
+
+    unloaded = [
+        (p.description, p.unit_number)
+        for p in clone_templates(cargo)
+        if (p.description, p.unit_number) not in loaded_units
+    ]
+
     return OptimizationResult(
         success=True,
         best=[best_layout],
@@ -192,5 +206,6 @@ def optimize_load(truck, cargo):
         message="Legal loading solution found.",
         rejected=rejected,
         requested_pallets=requested_pallets,
-        loaded_pallets=best_layout.pallet_count
+        loaded_pallets=best_layout.pallet_count,
+        unloaded=unloaded
     )

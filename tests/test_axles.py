@@ -8,12 +8,12 @@ from truck import CURTAINSIDER, FRIGO
 class TruckGeometryTests(unittest.TestCase):
 
     def test_confirmed_trailer_profiles(self):
-        self.assertEqual(CURTAINSIDER.trailer_length, 13.60)
+        self.assertEqual(CURTAINSIDER.trailer_length, 13.55)
         self.assertEqual(CURTAINSIDER.trailer_height, 2.68)
         self.assertEqual(CURTAINSIDER.external_trailer_length, 13.62)
         self.assertEqual(CURTAINSIDER.trailer_front_offset, 1.60)
         self.assertEqual(CURTAINSIDER.bogie_position, 7.70)
-        self.assertEqual(CURTAINSIDER.kingpin_to_rear_bulkhead, 12.00)
+        self.assertAlmostEqual(CURTAINSIDER.kingpin_to_rear_bulkhead, 11.95)
 
         self.assertEqual(FRIGO.trailer_length, 13.31)
         self.assertEqual(FRIGO.trailer_height, 2.45)

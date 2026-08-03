@@ -113,8 +113,8 @@ CURTAINSIDER = Truck(
     name="Curtainsider",
 
 
-    # 1.60 m front of kingpin + 12.00 m behind kingpin
-    trailer_length=13.60,
+    # Confirmed usable internal loading length.
+    trailer_length=13.55,
 
     trailer_width=2.45,
 

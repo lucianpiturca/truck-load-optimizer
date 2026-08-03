@@ -87,10 +87,8 @@ def create_loading_figure(truck: Truck, layout: Layout):
             )
 
     hover_x, hover_y, hover_text = [], [], []
-    cargo_sequence = {}
     for pallet in layout.pallets:
-        cargo_sequence[pallet.description] = cargo_sequence.get(pallet.description, 0) + 1
-        pallet_name = f"{pallet.description} #{cargo_sequence[pallet.description]}"
+        pallet_name = f"{pallet.description} #{pallet.unit_number}"
         x0, x1 = pallet.y, pallet.y + pallet.draw_length
         y0, y1 = pallet.x, pallet.x + pallet.draw_width
         fig.add_shape(

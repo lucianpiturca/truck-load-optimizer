@@ -30,6 +30,11 @@ UK_WIDTH = 1.00
 WIDTH_TOLERANCE = 0.02
 LENGTH_TOLERANCE = 0.02
 
+# A load must not be placed flush against both the front bulkhead and rear
+# doors.  This prevents a theoretical 34-Euro-pallet arrangement that has no
+# practical loading clearance in a 13.60 m curtainsider.
+END_CLEARANCE = 0.02
+
 
 
 # ==========================================================
@@ -60,6 +65,9 @@ class PlacedPallet:
     column: int = 0
 
     sequence: int = 0
+
+    # Per-cargo-type sequence number, retained from the user manifest.
+    unit_number: int = 0
 
     @property
     def draw_length(self):
@@ -164,6 +172,9 @@ class PalletTemplate:
 
     weight: float
 
+    # Per-cargo-type sequence number, retained from the user manifest.
+    unit_number: int = 0
+
 
 
 # ==========================================================
@@ -174,9 +185,13 @@ def clone_templates(cargo):
 
     pallets = []
 
+    unit_numbers = {}
+
     for item in cargo:
 
         for _ in range(item.quantity):
+
+            unit_numbers[item.description] = unit_numbers.get(item.description, 0) + 1
 
             pallets.append(
 
@@ -191,6 +206,10 @@ def clone_templates(cargo):
                     height=item.height,
 
                     weight=item.weight
+
+                    ,
+
+                    unit_number=unit_numbers[item.description]
 
                 )
 
@@ -513,6 +532,10 @@ def build_row(
 
             column=column + 1
 
+            ,
+
+            unit_number=template.unit_number
+
         )
 
 
@@ -574,7 +597,7 @@ def build_layout(
             break
 
 
-        if current_y + pattern.pallet_length > trailer_length + 0.0001:
+        if current_y + pattern.pallet_length > trailer_length - END_CLEARANCE:
 
             break
 
@@ -845,7 +868,7 @@ def build_mixed_layout(
 
                 + pattern.pallet_length
 
-                > trailer_length + 0.001
+                > trailer_length - END_CLEARANCE
 
             ):
 
@@ -993,7 +1016,7 @@ def fill_partial_row(
 
             last_y + pattern.pallet_length
 
-            > layout.trailer_length
+            > layout.trailer_length - END_CLEARANCE
 
         ):
 
