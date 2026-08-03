@@ -13,34 +13,48 @@
 
 def calculate_cargo_cg(truck, pallets):
 
+
     total_weight = sum(
+
         p.weight for p in pallets
+
     )
 
+
     if total_weight == 0:
+
         return 0
+
 
 
     moment = 0
 
 
+
     for pallet in pallets:
 
-        # pallet.y is already trailer position
-        # measured from trailer front
 
         pallet_center = (
+
             pallet.y
+
             +
+
             pallet.draw_length / 2
+
         )
 
 
         moment += (
+
             pallet.weight
+
             *
+
             pallet_center
+
         )
+
 
 
     return moment / total_weight
@@ -56,43 +70,71 @@ def calculate_trailer_reactions(truck, pallets):
 
 
     cargo_weight = sum(
+
         p.weight for p in pallets
+
     )
 
 
     if cargo_weight == 0:
+
         return 0, 0
 
 
 
     cg_from_trailer_front = calculate_cargo_cg(
+
         truck,
+
         pallets
+
     )
 
+
+
+    # Distance from kingpin to trailer front
 
     trailer_front_offset = getattr(
+
         truck,
+
         "trailer_front_offset",
+
         1.60
+
     )
 
 
-    # Convert trailer coordinate to kingpin reference
+
+    # Convert trailer coordinate to kingpin coordinate
+
+    # Kingpin is ahead of trailer front
 
     cg_from_kingpin = (
+
         cg_from_trailer_front
-        +
+
+        -
+
         trailer_front_offset
+
     )
+
 
 
     bogie_position = getattr(
+
         truck,
+
         "bogie_position",
+
         7.60
+
     )
 
+
+
+    # Static beam calculation
 
     bogie_load = (
 
@@ -109,16 +151,22 @@ def calculate_trailer_reactions(truck, pallets):
     )
 
 
-    # safety clamp
 
-    if bogie_load < 0:
+    # Safety boundaries
 
-        bogie_load = 0
+    bogie_load = max(
 
+        0,
 
-    if bogie_load > cargo_weight:
+        min(
 
-        bogie_load = cargo_weight
+            cargo_weight,
+
+            bogie_load
+
+        )
+
+    )
 
 
 
@@ -133,6 +181,7 @@ def calculate_trailer_reactions(truck, pallets):
     )
 
 
+
     return (
 
         kingpin_load,
@@ -144,7 +193,7 @@ def calculate_trailer_reactions(truck, pallets):
 
 
 # ==========================================================
-# TRACTOR AXLE SPLIT
+# TRACTOR AXLES
 # ==========================================================
 
 
@@ -173,6 +222,7 @@ def calculate_tractor_axles(truck, kingpin_load):
     )
 
 
+
     distance_kingpin_to_steer = (
 
         wheelbase
@@ -182,6 +232,7 @@ def calculate_tractor_axles(truck, kingpin_load):
         kingpin_to_drive
 
     )
+
 
 
     steer_load = (
@@ -199,6 +250,7 @@ def calculate_tractor_axles(truck, kingpin_load):
     )
 
 
+
     drive_load = (
 
         kingpin_load
@@ -208,6 +260,7 @@ def calculate_tractor_axles(truck, kingpin_load):
         steer_load
 
     )
+
 
 
     return (
@@ -228,7 +281,7 @@ def calculate_tractor_axles(truck, kingpin_load):
 def calculate_tridem_axles(bogie_load):
 
 
-    each = (
+    axle_load = (
 
         bogie_load / 3
 
@@ -237,18 +290,18 @@ def calculate_tridem_axles(bogie_load):
 
     return [
 
-        each,
+        axle_load,
 
-        each,
+        axle_load,
 
-        each
+        axle_load
 
     ]
 
 
 
 # ==========================================================
-# MAIN API
+# MAIN
 # ==========================================================
 
 
@@ -256,8 +309,11 @@ def calculate_axle_weights(truck, pallets):
 
 
     cargo_weight = sum(
+
         p.weight for p in pallets
+
     )
+
 
 
     cargo_cg = calculate_cargo_cg(
@@ -269,6 +325,7 @@ def calculate_axle_weights(truck, pallets):
     )
 
 
+
     kingpin_load, bogie_load = calculate_trailer_reactions(
 
         truck,
@@ -276,6 +333,7 @@ def calculate_axle_weights(truck, pallets):
         pallets
 
     )
+
 
 
     steer_load, drive_load = calculate_tractor_axles(
@@ -287,11 +345,13 @@ def calculate_axle_weights(truck, pallets):
     )
 
 
+
     tridem = calculate_tridem_axles(
 
         bogie_load
 
     )
+
 
 
     axle_weights = [
@@ -316,11 +376,15 @@ def calculate_axle_weights(truck, pallets):
 
     for i, weight in enumerate(axle_weights):
 
+
         report[f"Axle {i+1}"] = {
+
 
             "weight": weight,
 
+
             "limit": truck.axle_limits[i]
+
 
         }
 
@@ -333,21 +397,25 @@ def calculate_axle_weights(truck, pallets):
     )
 
 
+
     report["centre_of_gravity"] = cargo_cg
 
 
 
-    # Visible calibration data
-
     report["debug"] = {
+
 
         "cargo_weight": cargo_weight,
 
+
         "cargo_cg_from_trailer_front": cargo_cg,
+
 
         "kingpin_load": kingpin_load,
 
+
         "bogie_load": bogie_load
+
 
     }
 
