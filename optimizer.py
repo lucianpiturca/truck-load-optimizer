@@ -6,8 +6,6 @@
 
 from dataclasses import dataclass, field
 
-from typing import List
-
 
 from packing import (
     create_loading_candidates,
@@ -49,49 +47,35 @@ class OptimizationResult:
     )
 
 
+    failed_axle_report: dict = field(
+        default_factory=dict
+    )
+
+
 
 # ==========================================================
 # LEGAL CHECK
 # ==========================================================
 
 
-def check_legal(
-
-    truck,
-
-    layout
-
-):
+def check_legal(truck, layout):
 
 
     errors = []
 
 
-
-    # ------------------------------------------------------
-    # Physical validation
-    # ------------------------------------------------------
-
     valid, physical_errors = validate_layout(
-
         layout
-
     )
 
 
     if not valid:
 
         errors.extend(
-
             physical_errors
-
         )
 
 
-
-    # ------------------------------------------------------
-    # Axle calculation
-    # ------------------------------------------------------
 
     axle_report = calculate_axle_weights(
 
@@ -102,10 +86,6 @@ def check_legal(
     )
 
 
-
-    # ------------------------------------------------------
-    # Gross weight
-    # ------------------------------------------------------
 
     total_weight = axle_report.get(
 
@@ -131,14 +111,8 @@ def check_legal(
 
 
 
-    # ------------------------------------------------------
-    # Axles
-    # ------------------------------------------------------
-
     for axle_name, axle in axle_report.items():
 
-
-        # Ignore total and CG
 
         if not isinstance(
 
@@ -198,19 +172,11 @@ def check_legal(
 # ==========================================================
 
 
-def score_layout(
-
-    layout
-
-):
+def score_layout(layout):
 
 
     score = 0
 
-
-
-    # Most important:
-    # maximum pallets
 
     score += (
 
@@ -223,9 +189,6 @@ def score_layout(
     )
 
 
-
-    # Trailer utilisation
-
     score += (
 
         layout.used_length
@@ -236,9 +199,6 @@ def score_layout(
 
     )
 
-
-
-    # Preferred Euro pattern
 
     if layout.pattern_name == "EURO-3":
 
@@ -255,13 +215,7 @@ def score_layout(
 # ==========================================================
 
 
-def optimize_load(
-
-    truck,
-
-    cargo
-
-):
+def optimize_load(truck, cargo):
 
 
     candidates = create_loading_candidates(
@@ -271,7 +225,6 @@ def optimize_load(
         cargo
 
     )
-
 
 
     if not candidates:
@@ -297,8 +250,13 @@ def optimize_load(
 
 
 
-    for layout in candidates:
+    best_failed_report = {}
 
+    best_failed_score = -1
+
+
+
+    for layout in candidates:
 
 
         ok, axle_report, errors = check_legal(
@@ -362,9 +320,18 @@ def optimize_load(
 
 
 
-    # ------------------------------------------------------
-    # No legal solution
-    # ------------------------------------------------------
+            # Keep the failure with most pallets
+
+            # for diagnostics
+
+            if layout.pallet_count > best_failed_score:
+
+
+                best_failed_score = layout.pallet_count
+
+                best_failed_report = axle_report
+
+
 
     if not legal:
 
@@ -379,15 +346,13 @@ def optimize_load(
 
             ),
 
-            rejected=rejected
+            rejected=rejected,
+
+            failed_axle_report=best_failed_report
 
         )
 
 
-
-    # ------------------------------------------------------
-    # Select best legal solution
-    # ------------------------------------------------------
 
     legal.sort(
 
@@ -404,7 +369,6 @@ def optimize_load(
     )
 
 
-
     best_layout, best_axles = legal[0]
 
 
@@ -413,7 +377,13 @@ def optimize_load(
 
         success=True,
 
-        best=[best_layout],
+        best=[
+
+            best_layout,
+
+            best_axles
+
+        ],
 
         axle_report=best_axles,
 
