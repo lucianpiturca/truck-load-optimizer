@@ -1,7 +1,6 @@
 # ==========================================================
 # report.py
 # Truck Load Optimizer
-# Report generation
 # ==========================================================
 
 
@@ -19,10 +18,6 @@ def generate_report(truck, result):
     lines.append("")
 
 
-
-    # ======================================================
-    # SUCCESS
-    # ======================================================
 
     if result.success:
 
@@ -48,7 +43,6 @@ def generate_report(truck, result):
         lines.append("")
 
 
-
         add_axle_report(
 
             lines,
@@ -60,7 +54,6 @@ def generate_report(truck, result):
         )
 
 
-
         add_total_report(
 
             lines,
@@ -68,7 +61,6 @@ def generate_report(truck, result):
             result.axle_report
 
         )
-
 
 
         add_cg_report(
@@ -80,14 +72,13 @@ def generate_report(truck, result):
         )
 
 
-
         return "\n".join(lines)
 
 
 
-    # ======================================================
+    # ------------------------------------------------------
     # FAILURE
-    # ======================================================
+    # ------------------------------------------------------
 
 
     lines.append(
@@ -98,56 +89,9 @@ def generate_report(truck, result):
     lines.append("")
 
 
-    if result.message:
-
-
-        lines.append(
-            result.message
-        )
-
-
-
-    # ------------------------------------------------------
-    # Show best failed attempt
-    # ------------------------------------------------------
-
-
-    if result.rejected:
-
-
-        failed = result.rejected[0]
-
-
-        lines.append("")
-
-        lines.append(
-            "⚠️ Failed Load Check"
-        )
-
-
-        lines.append(
-
-            f"Tested: {failed.get('pallets')} pallets "
-
-            f"({failed.get('pattern')})"
-
-        )
-
-
-        lines.append("")
-
-
-        lines.append(
-
-            failed.get(
-
-                "reason",
-
-                ""
-
-            )
-
-        )
+    lines.append(
+        result.message
+    )
 
 
 
@@ -186,12 +130,38 @@ def generate_report(truck, result):
         )
 
 
+
+    if result.rejected:
+
+
+        lines.append("")
+
+        lines.append(
+            "Reasons tested:"
+        )
+
+
+        for item in result.rejected:
+
+
+            lines.append(
+
+                f"- {item['pallets']} pallets "
+
+                f"({item['pattern']}): "
+
+                f"{item['reason']}"
+
+            )
+
+
+
     return "\n".join(lines)
 
 
 
 # ==========================================================
-# AXLES
+# AXLE REPORT
 # ==========================================================
 
 
@@ -201,17 +171,35 @@ def add_axle_report(lines, axle_report, title):
     lines.append(title)
 
 
+
     for name, axle in axle_report.items():
 
+
+        # Ignore total, debug, cg etc.
 
         if not isinstance(axle, dict):
 
             continue
 
 
+        if (
+
+            "weight" not in axle
+
+            or
+
+            "limit" not in axle
+
+        ):
+
+            continue
+
+
+
         weight = axle["weight"]
 
         limit = axle["limit"]
+
 
 
         if weight <= limit:
@@ -260,17 +248,17 @@ def add_total_report(lines, axle_report):
     )
 
 
-    limit = 40000
+    icon = (
 
+        "🟢"
 
-    if total <= limit:
+        if total <= 40000
 
-        icon = "🟢"
+        else
 
-    else:
+        "🔴"
 
-        icon = "🔴"
-
+    )
 
 
     lines.append(
@@ -279,14 +267,14 @@ def add_total_report(lines, axle_report):
 
         f"{total:,.0f} kg / "
 
-        f"{limit:,.0f} kg"
+        f"40,000 kg"
 
     )
 
 
 
 # ==========================================================
-# CG
+# CG + DEBUG
 # ==========================================================
 
 
@@ -295,9 +283,7 @@ def add_cg_report(lines, axle_report):
 
     cg = axle_report.get(
 
-        "centre_of_gravity",
-
-        None
+        "centre_of_gravity"
 
     )
 
@@ -318,9 +304,7 @@ def add_cg_report(lines, axle_report):
 
     debug = axle_report.get(
 
-        "debug",
-
-        {}
+        "debug"
 
     )
 
@@ -338,6 +322,11 @@ def add_cg_report(lines, axle_report):
 
 
         for key, value in debug.items():
+
+
+            if key == "pallet_calculations":
+
+                continue
 
 
             if isinstance(value, float):
