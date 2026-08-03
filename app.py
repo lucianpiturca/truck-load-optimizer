@@ -321,12 +321,12 @@ if st.button(
 
 
 # ==========================================================
-# OPTIMIZE + VISUALISATION
+# OPTIMIZE + RESULTS
 # ==========================================================
 
 st.divider()
 
-left, right = st.columns([1, 3])
+left, right = st.columns([0.8, 4.2])
 
 with left:
 
@@ -339,6 +339,32 @@ with left:
             truck,
             st.session_state.cargo
         )
+
+    if st.session_state.result:
+
+        result = st.session_state.result
+
+        st.subheader("📊 Loading Result")
+
+        if result.success:
+
+            st.text(
+                generate_report(
+                    truck,
+                    result
+                )
+            )
+
+        else:
+
+            st.error(result.message)
+
+            st.text(
+                generate_report(
+                    truck,
+                    result
+                )
+            )
 
 with right:
 
@@ -360,34 +386,4 @@ with right:
             config={
                 "displayModeBar": False
             }
-        )
-
-# ==========================================================
-# REPORT
-# ==========================================================
-
-if st.session_state.result:
-
-    result = st.session_state.result
-
-    st.subheader("📊 Loading Result")
-
-    if result.success:
-
-        st.text(
-            generate_report(
-                truck,
-                result
-            )
-        )
-
-    else:
-
-        st.error(result.message)
-
-        st.text(
-            generate_report(
-                truck,
-                result
-            )
         )
