@@ -5,6 +5,7 @@
 
 
 from dataclasses import dataclass, field
+from typing import List
 
 
 from packing import (
@@ -17,39 +18,18 @@ from axles import calculate_axle_weights
 
 
 
-# ==========================================================
-# RESULT
-# ==========================================================
-
-
 @dataclass
 class OptimizationResult:
 
-
     success: bool
 
+    best: list = field(default_factory=list)
 
-    best: list = field(
-        default_factory=list
-    )
-
-
-    axle_report: dict = field(
-        default_factory=dict
-    )
-
+    axle_report: dict = field(default_factory=dict)
 
     message: str = ""
 
-
-    rejected: list = field(
-        default_factory=list
-    )
-
-
-    failed_axle_report: dict = field(
-        default_factory=dict
-    )
+    rejected: list = field(default_factory=list)
 
 
 
@@ -76,83 +56,33 @@ def check_legal(truck, layout):
         )
 
 
-
     axle_report = calculate_axle_weights(
-
         truck,
-
         layout.pallets
-
     )
 
 
-
-    total_weight = axle_report.get(
-
-        "total",
-
-        0
-
-    )
+    total = axle_report["total"]
 
 
-    if total_weight > truck.legal_gross:
-
+    if total > truck.legal_gross:
 
         errors.append(
-
-            "Gross weight exceeded "
-
-            f"({total_weight:.0f} kg / "
-
-            f"{truck.legal_gross:.0f} kg)"
-
+            f"Gross weight exceeded ({total:.0f} kg / {truck.legal_gross:.0f} kg)"
         )
 
 
+    for name, axle in axle_report.items():
 
-    for axle_name, axle in axle_report.items():
-
-
-        if not isinstance(
-
-            axle,
-
-            dict
-
-        ):
-
+        if not isinstance(axle, dict):
             continue
-
-
-
-        if (
-
-            "weight" not in axle
-
-            or
-
-            "limit" not in axle
-
-        ):
-
-            continue
-
 
 
         if axle["weight"] > axle["limit"]:
 
-
             errors.append(
-
-                f"{axle_name} exceeded "
-
-                f"({axle['weight']:.0f} kg / "
-
-                f"{axle['limit']:.0f} kg)"
-
+                f"{name} exceeded ({axle['weight']:.0f} kg / {axle['limit']:.0f} kg)"
             )
-
 
 
     return (
@@ -168,42 +98,52 @@ def check_legal(truck, layout):
 
 
 # ==========================================================
-# SCORE
+# BALANCE SCORE
 # ==========================================================
 
 
-def score_layout(layout):
+def score_layout(layout, axle_report):
 
 
     score = 0
 
 
-    score += (
+    # pallets always first
 
-        layout.pallet_count
-
-        *
-
-        100000
-
-    )
+    score += layout.pallet_count * 100000
 
 
-    score += (
 
-        layout.used_length
+    # penalise axle usage
 
-        *
+    for name, axle in axle_report.items():
 
-        100
-
-    )
+        if not isinstance(axle, dict):
+            continue
 
 
-    if layout.pattern_name == "EURO-3":
+        utilisation = (
 
-        score += 50000
+            axle["weight"]
 
+            /
+
+            axle["limit"]
+
+        )
+
+
+        score -= (
+
+            utilisation ** 4
+
+        ) * 50000
+
+
+
+    # prefer shorter loading length
+
+    score -= layout.used_length * 10
 
 
     return score
@@ -219,26 +159,18 @@ def optimize_load(truck, cargo):
 
 
     candidates = create_loading_candidates(
-
         truck,
-
         cargo
-
     )
 
 
     if not candidates:
 
-
         return OptimizationResult(
 
-            success=False,
+            False,
 
-            message=(
-
-                "No physical loading solution found."
-
-            )
+            message="No physical loading solution found."
 
         )
 
@@ -250,86 +182,42 @@ def optimize_load(truck, cargo):
 
 
 
-    best_failed_report = {}
-
-    best_failed_score = -1
-
-
-
     for layout in candidates:
 
 
         ok, axle_report, errors = check_legal(
-
             truck,
-
             layout
-
         )
-
 
 
         if ok:
 
-
-            layout.score = score_layout(
-
-                layout
-
-            )
-
-
             legal.append(
 
                 (
-
                     layout,
-
                     axle_report
-
                 )
 
             )
 
 
-
         else:
-
 
             rejected.append(
 
                 {
 
-                    "pallets":
+                    "pallets": layout.pallet_count,
 
-                        layout.pallet_count,
+                    "pattern": layout.pattern_name,
 
-
-                    "pattern":
-
-                        layout.pattern_name,
-
-
-                    "reason":
-
-                        "; ".join(errors)
+                    "reason": "; ".join(errors)
 
                 }
 
             )
-
-
-
-            # Keep the failure with most pallets
-
-            # for diagnostics
-
-            if layout.pallet_count > best_failed_score:
-
-
-                best_failed_score = layout.pallet_count
-
-                best_failed_report = axle_report
 
 
 
@@ -340,15 +228,9 @@ def optimize_load(truck, cargo):
 
             success=False,
 
-            message=(
+            message="No legal loading solution found.",
 
-                "No legal loading solution found."
-
-            ),
-
-            rejected=rejected,
-
-            failed_axle_report=best_failed_report
+            rejected=rejected
 
         )
 
@@ -359,9 +241,8 @@ def optimize_load(truck, cargo):
         key=lambda x:
 
             score_layout(
-
-                x[0]
-
+                x[0],
+                x[1]
             ),
 
         reverse=True
@@ -369,29 +250,19 @@ def optimize_load(truck, cargo):
     )
 
 
-    best_layout, best_axles = legal[0]
 
+    layout, axle_report = legal[0]
 
 
     return OptimizationResult(
 
         success=True,
 
-        best=[
+        best=[layout],
 
-            best_layout,
+        axle_report=axle_report,
 
-            best_axles
-
-        ],
-
-        axle_report=best_axles,
-
-        message=(
-
-            "Legal loading solution found."
-
-        ),
+        message="Legal loading solution found.",
 
         rejected=rejected
 

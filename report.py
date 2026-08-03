@@ -1,9 +1,8 @@
 # ==========================================================
 # report.py
 # Truck Load Optimizer
-# Report generator
+# Report generation
 # ==========================================================
-
 
 
 def generate_report(truck, result):
@@ -13,9 +12,7 @@ def generate_report(truck, result):
 
 
     lines.append(
-
-        "🚛 " + truck.name
-
+        f"🚛 {truck.name}"
     )
 
 
@@ -24,16 +21,115 @@ def generate_report(truck, result):
 
 
     # ======================================================
-    # FAILURE REPORT
+    # SUCCESS
+    # ======================================================
+
+    if result.success:
+
+
+        layout = result.best[0]
+
+
+        lines.append(
+            "📦 Load Summary"
+        )
+
+
+        lines.append(
+            f"Loaded pallets: {layout.pallet_count}"
+        )
+
+
+        lines.append(
+            f"Trailer used: {layout.used_length:.2f} m"
+        )
+
+
+        lines.append("")
+
+
+
+        add_axle_report(
+
+            lines,
+
+            result.axle_report,
+
+            "⚖️ Axle Weight Report"
+
+        )
+
+
+
+        add_total_report(
+
+            lines,
+
+            result.axle_report
+
+        )
+
+
+
+        add_cg_report(
+
+            lines,
+
+            result.axle_report
+
+        )
+
+
+
+        return "\n".join(lines)
+
+
+
+    # ======================================================
+    # FAILURE
     # ======================================================
 
 
-    if not result.success:
+    lines.append(
+        "❌ No legal loading solution found."
+    )
+
+
+    lines.append("")
+
+
+    if result.message:
+
+
+        lines.append(
+            result.message
+        )
+
+
+
+    # ------------------------------------------------------
+    # Show best failed attempt
+    # ------------------------------------------------------
+
+
+    if result.rejected:
+
+
+        failed = result.rejected[0]
+
+
+        lines.append("")
+
+        lines.append(
+            "⚠️ Failed Load Check"
+        )
 
 
         lines.append(
 
-            "❌ No legal loading solution found."
+            f"Tested: {failed.get('pallets')} pallets "
+
+            f"({failed.get('pattern')})"
 
         )
 
@@ -43,313 +139,109 @@ def generate_report(truck, result):
 
         lines.append(
 
-            result.message
+            failed.get(
+
+                "reason",
+
+                ""
+
+            )
 
         )
 
 
 
-        failed = getattr(
+    if result.axle_report:
 
-            result,
 
-            "failed_axle_report",
+        lines.append("")
 
-            {}
+
+        add_axle_report(
+
+            lines,
+
+            result.axle_report,
+
+            "⚖️ Failed Load Axle Check"
 
         )
 
 
-        if failed:
+        add_total_report(
 
+            lines,
 
-            lines.append("")
-
-            lines.append(
-
-                "⚖️ Failed Load Axle Check"
-
-            )
-
-
-
-            for i in range(1, 6):
-
-
-                axle = failed.get(
-
-                    f"Axle {i}"
-
-                )
-
-
-                if axle:
-
-
-                    weight = axle.get(
-
-                        "weight",
-
-                        0
-
-                    )
-
-
-                    limit = axle.get(
-
-                        "limit",
-
-                        0
-
-                    )
-
-
-                    if weight <= limit:
-
-                        status = "🟢"
-
-                    else:
-
-                        status = "🔴"
-
-
-
-                    lines.append(
-
-                        f"{status} Axle {i}: "
-
-                        f"{weight:,.0f} kg / "
-
-                        f"{limit:,.0f} kg"
-
-                    )
-
-
-
-            lines.append("")
-
-
-            lines.append(
-
-                "🚛 Total Weight"
-
-            )
-
-
-            lines.append(
-
-                f"{failed.get('total',0):,.0f} kg / "
-
-                f"{truck.legal_gross:,.0f} kg"
-
-            )
-
-
-
-            if "centre_of_gravity" in failed:
-
-
-                lines.append("")
-
-
-                lines.append(
-
-                    f"📍 Centre of gravity: "
-
-                    f"{failed['centre_of_gravity']:.2f} m"
-
-                )
-
-
-
-            debug = failed.get(
-
-                "debug"
-
-            )
-
-
-            if debug:
-
-
-                lines.append("")
-
-                lines.append(
-
-                    "🔧 Axle Calculation Debug"
-
-                )
-
-
-                for key, value in debug.items():
-
-
-                    if isinstance(value, float):
-
-                        lines.append(
-
-                            f"{key}: {value:,.2f}"
-
-                        )
-
-                    else:
-
-                        lines.append(
-
-                            f"{key}: {value}"
-
-                        )
-
-
-
-        rejected = getattr(
-
-            result,
-
-            "rejected",
-
-            []
+            result.axle_report
 
         )
 
 
-        if rejected:
+        add_cg_report(
+
+            lines,
+
+            result.axle_report
+
+        )
 
 
-            lines.append("")
-
-            lines.append(
-
-                "Reasons tested:"
-
-            )
-
-
-            for item in rejected:
-
-
-                lines.append(
-
-                    "- "
-
-                    f"{item['pallets']} pallets "
-
-                    f"({item['pattern']}): "
-
-                    f"{item['reason']}"
-
-                )
+    return "\n".join(lines)
 
 
 
-        return "\n".join(lines)
+# ==========================================================
+# AXLES
+# ==========================================================
 
 
-
-    # ======================================================
-    # SUCCESS REPORT
-    # ======================================================
+def add_axle_report(lines, axle_report, title):
 
 
-    lines.append(
-
-        "📦 Load Summary"
-
-    )
+    lines.append(title)
 
 
+    for name, axle in axle_report.items():
 
-    if result.best:
+
+        if not isinstance(axle, dict):
+
+            continue
 
 
-        layout = result.best[0]
+        weight = axle["weight"]
+
+        limit = axle["limit"]
+
+
+        if weight <= limit:
+
+            icon = "🟢"
+
+        else:
+
+            icon = "🔴"
+
 
 
         lines.append(
 
-            f"Loaded pallets: "
+            f"{icon} {name}: "
 
-            f"{layout.pallet_count}"
+            f"{weight:,.0f} kg / "
 
-        )
-
-
-        lines.append(
-
-            f"Trailer used: "
-
-            f"{layout.used_length:.2f} m"
+            f"{limit:,.0f} kg"
 
         )
 
 
 
-    lines.append("")
+# ==========================================================
+# TOTAL
+# ==========================================================
 
 
-
-    axle_report = (
-
-        result.axle_report
-
-        if result.axle_report
-
-        else result.best[1]
-
-    )
-
-
-
-    lines.append(
-
-        "⚖️ Axle Weight Report"
-
-    )
-
-
-
-    for i in range(1, 6):
-
-
-        axle = axle_report.get(
-
-            f"Axle {i}"
-
-        )
-
-
-        if axle:
-
-
-            weight = axle["weight"]
-
-            limit = axle["limit"]
-
-
-            if weight <= limit:
-
-                status = "🟢"
-
-            else:
-
-                status = "🔴"
-
-
-
-            lines.append(
-
-                f"{status} Axle {i}: "
-
-                f"{weight:,.0f} kg / "
-
-                f"{limit:,.0f} kg"
-
-            )
-
-
-
-    lines.append("")
-
+def add_total_report(lines, axle_report):
 
 
     total = axle_report.get(
@@ -361,51 +253,74 @@ def generate_report(truck, result):
     )
 
 
-    if total <= truck.legal_gross:
+    lines.append("")
 
-        status = "🟢"
+    lines.append(
+        "🚛 Total Weight"
+    )
+
+
+    limit = 40000
+
+
+    if total <= limit:
+
+        icon = "🟢"
 
     else:
 
-        status = "🔴"
+        icon = "🔴"
 
 
 
     lines.append(
 
-        "🚛 Total Weight"
-
-    )
-
-
-    lines.append(
-
-        f"{status} Total: "
+        f"{icon} Total: "
 
         f"{total:,.0f} kg / "
 
-        f"{truck.legal_gross:,.0f} kg"
+        f"{limit:,.0f} kg"
 
     )
 
 
 
-    lines.append("")
+# ==========================================================
+# CG
+# ==========================================================
 
 
-    lines.append(
+def add_cg_report(lines, axle_report):
 
-        f"📍 Centre of gravity: "
 
-        f"{axle_report.get('centre_of_gravity',0):.2f} m"
+    cg = axle_report.get(
+
+        "centre_of_gravity",
+
+        None
 
     )
+
+
+    if cg is not None:
+
+
+        lines.append("")
+
+
+        lines.append(
+
+            f"📍 Centre of gravity: {cg:.2f} m"
+
+        )
 
 
 
     debug = axle_report.get(
 
-        "debug"
+        "debug",
+
+        {}
 
     )
 
@@ -424,22 +339,14 @@ def generate_report(truck, result):
 
         for key, value in debug.items():
 
+
             if isinstance(value, float):
 
-                lines.append(
-
-                    f"{key}: {value:,.2f}"
-
-                )
-
-            else:
-
-                lines.append(
-
-                    f"{key}: {value}"
-
-                )
+                value = f"{value:,.2f}"
 
 
+            lines.append(
 
-    return "\n".join(lines)
+                f"{key}: {value}"
+
+            )

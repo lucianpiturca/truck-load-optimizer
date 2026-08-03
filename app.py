@@ -9,15 +9,11 @@ import streamlit as st
 
 from truck import TRUCKS
 
-
 from cargo import CargoItem
-
 
 from optimizer import optimize_load
 
-
 from drawing import create_loading_figure
-
 
 from report import generate_report
 
@@ -48,7 +44,6 @@ if "cargo" not in st.session_state:
     st.session_state.cargo = []
 
 
-
 if "result" not in st.session_state:
 
     st.session_state.result = None
@@ -61,9 +56,7 @@ if "result" not in st.session_state:
 
 
 st.title(
-
     "🚛 Truck Load Optimizer"
-
 )
 
 
@@ -74,11 +67,8 @@ st.title(
 
 
 st.sidebar.header(
-
     "Truck"
-
 )
-
 
 
 truck_name = st.sidebar.selectbox(
@@ -88,7 +78,6 @@ truck_name = st.sidebar.selectbox(
     list(TRUCKS.keys())
 
 )
-
 
 
 truck = TRUCKS[truck_name]
@@ -101,9 +90,7 @@ truck = TRUCKS[truck_name]
 
 
 st.subheader(
-
     "➕ Add Cargo"
-
 )
 
 
@@ -115,9 +102,7 @@ col1, col2, col3, col4, col5, col6 = st.columns(6)
 with col1:
 
     description = st.text_input(
-
         "Description"
-
     )
 
 
@@ -188,9 +173,7 @@ with col6:
 
 
 if st.button(
-
     "Add cargo"
-
 ):
 
 
@@ -202,11 +185,11 @@ if st.button(
 
             quantity=int(quantity),
 
-            length=length/100,
+            length=length / 100,
 
-            width=width/100,
+            width=width / 100,
 
-            height=height/100,
+            height=height / 100,
 
             weight=weight
 
@@ -220,20 +203,17 @@ if st.button(
 
 
 # ==========================================================
-# CURRENT CARGO TABLE
+# CARGO LIST
 # ==========================================================
 
 
 st.subheader(
-
     "📦 Cargo list"
-
 )
 
 
 
 if st.session_state.cargo:
-
 
 
     for index, item in enumerate(
@@ -243,7 +223,11 @@ if st.session_state.cargo:
     ):
 
 
-        cols = st.columns([4,2,2,2,2,1])
+        cols = st.columns(
+
+            [4,2,2,2,2,1]
+
+        )
 
 
         cols[0].write(
@@ -289,6 +273,7 @@ if st.session_state.cargo:
 
             )
 
+
             st.session_state.result = None
 
             st.rerun()
@@ -298,9 +283,7 @@ if st.session_state.cargo:
 else:
 
     st.info(
-
         "No cargo added"
-
     )
 
 
@@ -321,69 +304,106 @@ if st.button(
 
 
 # ==========================================================
-# OPTIMIZE + RESULTS
+# OPTIMIZE
 # ==========================================================
+
 
 st.divider()
 
-left, right = st.columns([0.8, 4.2])
 
-with left:
 
-    if st.button(
-        "🚀 Optimize Load",
-        type="primary"
-    ):
+if st.button(
 
-        st.session_state.result = optimize_load(
+    "🚀 Optimize Load",
+
+    type="primary"
+
+):
+
+
+    st.session_state.result = optimize_load(
+
+        truck,
+
+        st.session_state.cargo
+
+    )
+
+
+
+# ==========================================================
+# OUTPUT
+# ==========================================================
+
+
+if st.session_state.result:
+
+
+    result = st.session_state.result
+
+
+    st.subheader(
+
+        "📊 Loading Result"
+
+    )
+
+
+    st.text(
+
+        generate_report(
+
             truck,
-            st.session_state.cargo
+
+            result
+
         )
 
-    if st.session_state.result:
+    )
 
-        result = st.session_state.result
 
-        st.subheader("📊 Loading Result")
 
-        if result.success:
+    st.divider()
 
-            st.text(
-                generate_report(
-                    truck,
-                    result
-                )
-            )
 
-        else:
 
-            st.error(result.message)
+    # ======================================================
+    # VISUALIZATION
+    # ======================================================
 
-            st.text(
-                generate_report(
-                    truck,
-                    result
-                )
-            )
 
-with right:
+    if result.success:
 
-    if (
-        st.session_state.result
-        and st.session_state.result.success
-    ):
 
-        layout = st.session_state.result.best[0]
+        st.subheader(
+
+            "🚛 Load Visualization"
+
+        )
+
+
+        layout = result.best[0]
+
 
         fig = create_loading_figure(
+
             truck,
+
             layout
+
         )
 
+
         st.plotly_chart(
+
             fig,
-            use_container_width=False,
+
+            use_container_width=True,
+
             config={
+
                 "displayModeBar": False
+
             }
+
         )
