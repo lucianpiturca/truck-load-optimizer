@@ -1,43 +1,23 @@
 # ==========================================================
 # report.py
 # Truck Load Optimizer
-# Reporting engine
+# Text report generator
 # ==========================================================
 
 
-def kg(value):
+def generate_report(truck, result):
 
-    return f"{value:,.0f} kg"
-
-
-
-def generate_report(
-
-    truck,
-
-    result
-
-):
 
     lines = []
 
 
-    # ======================================================
-    # Header
-    # ======================================================
-
-    lines.append(
-
-        f"🚛 {truck.name}"
-
-    )
+    lines.append("🚛 " + truck.name)
 
     lines.append("")
 
 
-
     # ======================================================
-    # No solution
+    # NO SOLUTION
     # ======================================================
 
     if not result.success:
@@ -49,10 +29,23 @@ def generate_report(
 
         )
 
+
         lines.append("")
 
 
-        if result.rejected:
+        if hasattr(result, "message"):
+
+            lines.append(
+
+                result.message
+
+            )
+
+
+        if hasattr(result, "failures"):
+
+
+            lines.append("")
 
 
             lines.append(
@@ -62,15 +55,11 @@ def generate_report(
             )
 
 
-            for item in result.rejected[:10]:
+            for failure in result.failures:
 
                 lines.append(
 
-                    f"- {item['pallets']} pallets "
-
-                    f"({item['pattern']}): "
-
-                    f"{item['reason']}"
+                    "- " + failure
 
                 )
 
@@ -80,8 +69,9 @@ def generate_report(
 
 
     # ======================================================
-    # Layout
+    # SOLUTION
     # ======================================================
+
 
     layout = result.best[0]
 
@@ -95,7 +85,7 @@ def generate_report(
 
     lines.append(
 
-        f"Loaded pallets: {layout.pallet_count}"
+        f"Loaded pallets: {len(layout.pallets)}"
 
     )
 
@@ -107,43 +97,18 @@ def generate_report(
     )
 
 
-    lines.append(
-
-        f"Trailer free: {layout.free_length:.2f} m"
-
-    )
-
-
-
-    utilisation = (
-
-        layout.used_length
-
-        /
-
-        layout.trailer_length
-
-        *
-
-        100
-
-    )
-
-
-    lines.append(
-
-        f"Floor utilisation: {utilisation:.1f} %"
-
-    )
-
-
     lines.append("")
 
 
 
     # ======================================================
-    # Axles
+    # AXLES
     # ======================================================
+
+
+    axle_report = result.best[1]
+
+
 
     lines.append(
 
@@ -152,62 +117,65 @@ def generate_report(
     )
 
 
-    axle_report = result.axle_report
+    for i in range(1, 6):
 
 
+        axle = axle_report.get(
 
-    for key, axle in axle_report.items():
-
-
-        if key == "total":
-
-            continue
-
-
-
-        weight = axle["weight"]
-
-        limit = axle["limit"]
-
-
-
-        if weight <= limit:
-
-            status = "🟢"
-
-            text = ""
-
-        else:
-
-            status = "🔴"
-
-            text = " OVERWEIGHT"
-
-
-
-        lines.append(
-
-            f"{status} {key}: "
-
-            f"{kg(weight)} / "
-
-            f"{kg(limit)}"
-
-            f"{text}"
+            f"Axle {i}"
 
         )
+
+
+        if axle:
+
+
+            weight = axle["weight"]
+
+            limit = axle["limit"]
+
+
+            if weight <= limit:
+
+                status = "🟢"
+
+            else:
+
+                status = "🔴"
+
+
+            lines.append(
+
+                f"{status} Axle {i}: "
+
+                f"{weight:,.0f} kg / "
+
+                f"{limit:,.0f} kg"
+
+            )
+
 
 
     lines.append("")
 
 
+    total = axle_report.get(
 
-    # ======================================================
-    # Total weight
-    # ======================================================
+        "total",
+
+        0
+
+    )
 
 
-    total = axle_report["total"]
+    if total <= truck.legal_gross:
+
+        status = "🟢"
+
+    else:
+
+        status = "🔴"
+
 
 
     lines.append(
@@ -217,101 +185,122 @@ def generate_report(
     )
 
 
-    if total <= truck.legal_gross:
-
-        status = "🟢"
-
-        warning = ""
-
-    else:
-
-        status = "🔴"
-
-        warning = " OVERWEIGHT"
-
-
-
     lines.append(
 
         f"{status} Total: "
 
-        f"{kg(total)} / "
+        f"{total:,.0f} kg / "
 
-        f"{kg(truck.legal_gross)}"
-
-        f"{warning}"
+        f"{truck.legal_gross:,.0f} kg"
 
     )
+
 
 
     lines.append("")
 
 
+    cg = axle_report.get(
+
+        "centre_of_gravity",
+
+        0
+
+    )
+
+
+    lines.append(
+
+        f"📍 Centre of gravity: {cg:.2f} m"
+
+    )
+
+
 
     # ======================================================
-    # Centre of gravity
+    # DEBUG SECTION
     # ======================================================
 
 
-    if "centre_of_gravity" in axle_report:
+    debug = axle_report.get(
+
+        "debug"
+
+    )
 
 
-        lines.append(
-
-            f"📍 Centre of gravity: "
-
-            f"{axle_report['centre_of_gravity']:.2f} m"
-
-        )
+    if debug:
 
 
         lines.append("")
 
+        lines.append(
 
+            "🔧 Axle Calculation Debug"
 
-    # ======================================================
-    # Pattern information
-    # ======================================================
-
-
-    if layout.pattern_name:
+        )
 
 
         lines.append(
 
-            f"📐 Loading pattern: "
+            f"Cargo weight: "
 
-            f"{layout.pattern_name}"
+            f"{debug.get('cargo_weight',0):,.0f} kg"
 
         )
+
+
+        lines.append(
+
+            f"Cargo CG from trailer front: "
+
+            f"{debug.get('cargo_cg_from_trailer_front',0):.2f} m"
+
+        )
+
+
+        lines.append(
+
+            f"Kingpin load: "
+
+            f"{debug.get('kingpin_load',0):,.0f} kg"
+
+        )
+
+
+        lines.append(
+
+            f"Bogie load: "
+
+            f"{debug.get('bogie_load',0):,.0f} kg"
+
+        )
+
+
+
+    # ======================================================
+    # NOT LOADED
+    # ======================================================
+
+
+    if hasattr(layout, "not_loaded") and layout.not_loaded:
 
 
         lines.append("")
 
-
-
-    # ======================================================
-    # Rejected cargo
-    # ======================================================
-
-
-    if result.rejected:
-
-
         lines.append(
 
-            "⚠️ Alternative layouts rejected"
+            "⚠️ Cargo Not Loaded"
 
         )
 
 
-        for item in result.rejected[:5]:
+        for item in layout.not_loaded:
+
 
             lines.append(
 
-                f"- {item['pallets']} pallets: "
-
-                f"{item['reason']}"
+                f"- {item}"
 
             )
 
