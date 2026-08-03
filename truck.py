@@ -21,11 +21,16 @@ class Truck:
     name: str
 
 
-    # Trailer dimensions (metres)
+    # Usable internal trailer dimensions (metres)
 
     trailer_length: float
 
     trailer_width: float
+
+    # Overall external trailer length (metres).  This is reference data;
+    # packing must use trailer_length above.
+
+    external_trailer_length: float
 
 
 
@@ -55,7 +60,9 @@ class Truck:
 
 
 
-    # Drive axle -> fifth wheel
+    # Drive axle -> fifth wheel (metres).  A fifth wheel 0.60 m ahead of
+    # the drive axle on a 3.60 m wheelbase gives a 1/6 steer, 5/6 drive
+    # static transfer of kingpin load.
 
     kingpin_to_drive_axle: float
 
@@ -73,6 +80,22 @@ class Truck:
 
     trailer_front_offset: float
 
+    # Verified centre of gravity of a uniformly distributed payload,
+    # measured behind the kingpin.  This is reference data for validating
+    # the vehicle profile; individual pallet CGs are calculated directly.
+
+    uniform_payload_cg: float
+
+    @property
+    def kingpin_to_rear_bulkhead(self):
+
+        return self.trailer_length - self.trailer_front_offset
+
+    @property
+    def kingpin_steer_fraction(self):
+
+        return self.kingpin_to_drive_axle / self.wheelbase
+
 
 
 # ==========================================================
@@ -86,9 +109,12 @@ CURTAINSIDER = Truck(
     name="Curtainsider",
 
 
-    trailer_length=13.55,
+    # 1.60 m front of kingpin + 12.00 m behind kingpin
+    trailer_length=13.60,
 
     trailer_width=2.45,
+
+    external_trailer_length=13.62,
 
 
     legal_gross=40000,
@@ -129,13 +155,15 @@ CURTAINSIDER = Truck(
     wheelbase=3.60,
 
 
-    kingpin_to_drive_axle=0.90,
+    kingpin_to_drive_axle=0.60,
 
 
-    bogie_position=7.60,
+    bogie_position=7.70,
 
 
-    trailer_front_offset=1.60
+    trailer_front_offset=1.60,
+
+    uniform_payload_cg=5.20
 
 )
 
@@ -152,9 +180,11 @@ FRIGO = Truck(
     name="Frigo",
 
 
-    trailer_length=13.60,
+    trailer_length=13.31,
 
     trailer_width=2.45,
+
+    external_trailer_length=13.68,
 
 
     legal_gross=40000,
@@ -195,13 +225,15 @@ FRIGO = Truck(
     wheelbase=3.60,
 
 
-    kingpin_to_drive_axle=0.90,
+    kingpin_to_drive_axle=0.60,
 
 
-    bogie_position=7.60,
+    bogie_position=7.70,
 
 
-    trailer_front_offset=1.60
+    trailer_front_offset=1.68,
+
+    uniform_payload_cg=5.02
 
 )
 

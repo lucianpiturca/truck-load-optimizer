@@ -5,17 +5,11 @@
 # ==========================================================
 
 
-# Trailer geometry
-KINGPIN_TO_BOGIE_CENTER = 7.7
-FRONT_OVERHANG = 1.6
-
-
-
 # ==========================================================
 # PALLET POSITION
 # ==========================================================
 
-def pallet_position_from_kingpin(pallet):
+def pallet_position_from_kingpin(truck, pallet):
 
     pallet_center = (
         pallet.y
@@ -26,7 +20,7 @@ def pallet_position_from_kingpin(pallet):
     return (
         pallet_center
         -
-        FRONT_OVERHANG
+        truck.trailer_front_offset
     )
 
 
@@ -35,7 +29,7 @@ def pallet_position_from_kingpin(pallet):
 # TRAILER BEAM CALCULATION
 # ==========================================================
 
-def calculate_trailer_loads(pallets):
+def calculate_trailer_loads(truck, pallets):
 
 
     kingpin_load = 0
@@ -51,6 +45,9 @@ def calculate_trailer_loads(pallets):
 
 
         x = pallet_position_from_kingpin(
+
+            truck,
+
             pallet
         )
 
@@ -67,7 +64,7 @@ def calculate_trailer_loads(pallets):
 
             (
 
-                KINGPIN_TO_BOGIE_CENTER
+                truck.bogie_position
 
                 -
 
@@ -77,7 +74,7 @@ def calculate_trailer_loads(pallets):
 
             /
 
-            KINGPIN_TO_BOGIE_CENTER
+            truck.bogie_position
 
         )
 
@@ -93,7 +90,7 @@ def calculate_trailer_loads(pallets):
 
             /
 
-            KINGPIN_TO_BOGIE_CENTER
+            truck.bogie_position
 
         )
 
@@ -123,14 +120,10 @@ def calculate_trailer_loads(pallets):
 
 
 
-    # Physical constraint:
-    # fifth wheel cannot have negative load
-
-    if kingpin_load < 0:
-
-        bogie_load += kingpin_load
-
-        kingpin_load = 0
+    # Keep the reactions signed.  A pallet behind the bogie centre creates a
+    # negative *incremental* kingpin reaction and transfers more than its own
+    # weight to the bogie.  When added to the measured empty axle weights this
+    # is the correct static lever behaviour.
 
 
 
@@ -151,34 +144,20 @@ def calculate_trailer_loads(pallets):
 # ==========================================================
 
 def calculate_tractor_axles(truck, kingpin_load):
+    if not 0 <= truck.kingpin_to_drive_axle <= truck.wheelbase:
 
+        raise ValueError(
+            "Fifth wheel must be positioned between the steer and drive axles"
+        )
 
-    kingpin_load = max(
-        0,
-        kingpin_load
-    )
+    # Static point-load reactions for a two-axle tractor.  The fifth wheel
+    # position is vehicle-specific; for the configured 0.60 / 3.60 m
+    # geometry this is the agreed 1/6 steer, 5/6 drive split.
+    steer_fraction = truck.kingpin_steer_fraction
 
+    steer_transfer = kingpin_load * steer_fraction
 
-    steer_transfer = (
-
-        kingpin_load
-
-        *
-
-        0.10
-
-    )
-
-
-    drive_transfer = (
-
-        kingpin_load
-
-        *
-
-        0.90
-
-    )
+    drive_transfer = kingpin_load * (1 - steer_fraction)
 
 
     return (
@@ -236,6 +215,8 @@ def calculate_axle_weights(truck, pallets):
 
 
     kingpin_load, bogie_load, debug_pallets = calculate_trailer_loads(
+
+        truck,
 
         pallets
 
@@ -307,7 +288,7 @@ def calculate_axle_weights(truck, pallets):
 
         cg = sum(
 
-            pallet_position_from_kingpin(p)
+            pallet_position_from_kingpin(truck, p)
 
             *
 
@@ -336,9 +317,13 @@ def calculate_axle_weights(truck, pallets):
 
         "bogie_load": bogie_load,
 
-        "kingpin_to_bogie_center": KINGPIN_TO_BOGIE_CENTER,
+        "kingpin_to_bogie_center": truck.bogie_position,
 
-        "front_overhang": FRONT_OVERHANG,
+        "front_overhang": truck.trailer_front_offset,
+
+        "kingpin_to_rear_bulkhead": truck.kingpin_to_rear_bulkhead,
+
+        "kingpin_steer_fraction": truck.kingpin_steer_fraction,
 
         "pallet_count": len(pallets)
 

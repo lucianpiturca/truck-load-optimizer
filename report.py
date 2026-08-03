@@ -8,7 +8,7 @@ def generate_report(truck, result):
 
     lines = []
 
-    lines.append(f"🚛 {truck.name}")
+    lines.append(f"TRUCK: {truck.name.upper()}")
     lines.append("")
 
     # ======================================================
@@ -19,7 +19,7 @@ def generate_report(truck, result):
 
         layout = result.best[0]
 
-        lines.append("📦 Load Summary")
+        lines.append("LOAD SUMMARY")
 
         lines.append(
             f"Requested pallets: {result.requested_pallets}"
@@ -45,7 +45,7 @@ def generate_report(truck, result):
             )
 
             lines.append(
-                f"⚠️ Not loaded: {not_loaded} {pallet_word}"
+                f"NOT LOADED: {not_loaded} {pallet_word}"
             )
 
             lines.append(
@@ -63,7 +63,7 @@ def generate_report(truck, result):
         add_axle_report(
             lines,
             result.axle_report,
-            "⚖️ Axle Weight Report"
+            "AXLE WEIGHT REPORT"
         )
 
         add_total_report(
@@ -83,7 +83,7 @@ def generate_report(truck, result):
     # FAILURE
     # ======================================================
 
-    lines.append("❌ No legal loading solution found.")
+    lines.append("NO LEGAL LOADING SOLUTION FOUND.")
     lines.append("")
     lines.append(result.message)
 
@@ -107,7 +107,7 @@ def generate_report(truck, result):
         add_axle_report(
             lines,
             result.axle_report,
-            "⚖️ Failed Load Axle Check"
+            "FAILED LOAD AXLE CHECK"
         )
 
         add_total_report(
@@ -149,13 +149,13 @@ def add_axle_report(lines, axle_report, title):
         limit = axle["limit"]
 
         icon = (
-            "🟢"
+            "OK"
             if weight <= limit
-            else "🔴"
+            else "OVER"
         )
 
         lines.append(
-            f"{icon} {name}: "
+            f"[{icon}] {name}: "
             f"{weight:,.0f} kg / {limit:,.0f} kg"
         )
 
@@ -173,15 +173,15 @@ def add_total_report(lines, axle_report, truck):
     )
 
     icon = (
-        "🟢"
+        "OK"
         if total <= truck.legal_gross
-        else "🔴"
+        else "OVER"
     )
 
     lines.append("")
-    lines.append("🚛 Total Weight")
+    lines.append("TOTAL WEIGHT")
     lines.append(
-        f"{icon} Total: "
+        f"[{icon}] Total: "
         f"{total:,.0f} kg / "
         f"{truck.legal_gross:,.0f} kg"
     )
@@ -202,7 +202,7 @@ def add_cg_report(lines, axle_report):
 
         lines.append("")
         lines.append(
-            f"📍 Centre of gravity: {cg:.2f} m"
+            f"Centre of gravity: {cg:.2f} m"
         )
 
     debug = axle_report.get("debug")
@@ -211,7 +211,7 @@ def add_cg_report(lines, axle_report):
 
         lines.append("")
         lines.append(
-            "🔧 Axle Calculation Debug"
+            "AXLE CALCULATION DETAILS"
         )
 
         for key, value in debug.items():
