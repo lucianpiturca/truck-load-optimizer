@@ -1,11 +1,26 @@
 # ==========================================================
 # axles.py
 # Truck Load Optimizer
-# Axle weight calculation
+# Axle load calculation
 # ==========================================================
 
 
-def get_pallet_centre_from_kingpin(
+def get_value(obj, name, default):
+
+    return getattr(
+        obj,
+        name,
+        default
+    )
+
+
+
+# ==========================================================
+# CARGO POSITION
+# ==========================================================
+
+
+def pallet_position_from_kingpin(
 
     truck,
 
@@ -14,13 +29,28 @@ def get_pallet_centre_from_kingpin(
 ):
 
     """
-    Pallet centre position measured from kingpin.
+    Position of pallet centre measured
+    from kingpin.
 
-    Trailer front is behind the kingpin by
-    trailer_front_offset.
+    Positive = behind kingpin.
     """
 
+    trailer_front_offset = get_value(
+
+        truck,
+
+        "trailer_front_offset",
+
+        1.60
+
+    )
+
+
     return (
+
+        trailer_front_offset
+
+        +
 
         pallet.y
 
@@ -28,16 +58,12 @@ def get_pallet_centre_from_kingpin(
 
         pallet.draw_length / 2
 
-        -
-
-        truck.trailer_front_offset
-
     )
 
 
 
 # ==========================================================
-# CARGO CENTRE OF GRAVITY
+# CARGO CG
 # ==========================================================
 
 
@@ -48,12 +74,6 @@ def calculate_cargo_cg(
     pallets
 
 ):
-
-
-    if not pallets:
-
-        return 0
-
 
 
     total_weight = sum(
@@ -78,7 +98,7 @@ def calculate_cargo_cg(
     for pallet in pallets:
 
 
-        position = get_pallet_centre_from_kingpin(
+        position = pallet_position_from_kingpin(
 
             truck,
 
@@ -104,11 +124,11 @@ def calculate_cargo_cg(
 
 
 # ==========================================================
-# TRAILER SUPPORT REACTIONS
+# TRAILER LOAD TRANSFER
 # ==========================================================
 
 
-def calculate_kingpin_and_bogie_load(
+def calculate_trailer_reactions(
 
     truck,
 
@@ -118,15 +138,13 @@ def calculate_kingpin_and_bogie_load(
 
     """
 
-    Trailer is treated as a beam:
+    Trailer beam model:
 
-    Kingpin support = 0m
+    Kingpin support = 0 m
 
-    Bogie support = bogie_position
-
+    Tridem centre = bogie_position
 
     """
-
 
 
     cargo_weight = sum(
@@ -154,7 +172,7 @@ def calculate_kingpin_and_bogie_load(
 
 
 
-    bogie_distance = truck.bogie_position
+    bogie_position = truck.bogie_position
 
 
 
@@ -168,37 +186,7 @@ def calculate_kingpin_and_bogie_load(
 
         /
 
-        bogie_distance
-
-    )
-
-
-
-    kingpin_load = (
-
-        cargo_weight
-
-        -
-
-        bogie_load
-
-    )
-
-
-
-    # safety limits
-
-    bogie_load = max(
-
-        0,
-
-        min(
-
-            cargo_weight,
-
-            bogie_load
-
-        )
+        bogie_position
 
     )
 
@@ -212,6 +200,7 @@ def calculate_kingpin_and_bogie_load(
         bogie_load
 
     )
+
 
 
     return (
@@ -229,7 +218,7 @@ def calculate_kingpin_and_bogie_load(
 # ==========================================================
 
 
-def calculate_tractor_distribution(
+def calculate_tractor_axles(
 
     truck,
 
@@ -239,7 +228,10 @@ def calculate_tractor_distribution(
 
     """
 
-    Kingpin load split between tractor axles.
+    Calculates fifth-wheel load transfer.
+
+    Uses explicit kingpin_to_drive_axle
+    when available.
 
     """
 
@@ -249,31 +241,48 @@ def calculate_tractor_distribution(
 
 
 
-    kingpin_distance = truck.kingpin_offset
+    kingpin_to_drive = get_value(
+
+        truck,
+
+        "kingpin_to_drive_axle",
+
+        truck.kingpin_offset
+
+    )
 
 
 
-    front_load = (
+    # distance from kingpin to steer axle
+
+    kingpin_to_steer = (
+
+        wheelbase
+
+        +
+
+        kingpin_to_drive
+
+    )
+
+
+
+    # front axle reaction
+
+    steer_load = (
 
         kingpin_load
 
         *
 
-        (
-
-            wheelbase
-
-            -
-
-            kingpin_distance
-
-        )
+        kingpin_to_drive
 
         /
 
-        wheelbase
+        kingpin_to_steer
 
     )
+
 
 
     drive_load = (
@@ -282,14 +291,15 @@ def calculate_tractor_distribution(
 
         -
 
-        front_load
+        steer_load
 
     )
 
 
+
     return (
 
-        front_load,
+        steer_load,
 
         drive_load
 
@@ -298,21 +308,16 @@ def calculate_tractor_distribution(
 
 
 # ==========================================================
-# TRAILER TRIDEM
+# TRIDEM
 # ==========================================================
 
 
-def calculate_tridem_distribution(
+def calculate_tridem_axles(
 
     bogie_load
 
 ):
 
-    """
-
-    Equal tridem axle distribution.
-
-    """
 
     each = (
 
@@ -347,7 +352,7 @@ def calculate_axle_weights(
 ):
 
 
-    kingpin, bogie = calculate_kingpin_and_bogie_load(
+    kingpin_load, bogie_load = calculate_trailer_reactions(
 
         truck,
 
@@ -356,18 +361,20 @@ def calculate_axle_weights(
     )
 
 
-    front, drive = calculate_tractor_distribution(
+
+    steer, drive = calculate_tractor_axles(
 
         truck,
 
-        kingpin
+        kingpin_load
 
     )
 
 
-    tridem = calculate_tridem_distribution(
 
-        bogie
+    tridem = calculate_tridem_axles(
+
+        bogie_load
 
     )
 
@@ -375,7 +382,7 @@ def calculate_axle_weights(
 
     axle_weights = [
 
-        truck.empty_axles[0] + front,
+        truck.empty_axles[0] + steer,
 
         truck.empty_axles[1] + drive,
 
@@ -389,14 +396,14 @@ def calculate_axle_weights(
 
 
 
-    report = {}
+    result = {}
 
 
 
     for i, weight in enumerate(axle_weights):
 
 
-        report[f"Axle {i+1}"] = {
+        result[f"Axle {i+1}"] = {
 
             "weight": weight,
 
@@ -406,15 +413,14 @@ def calculate_axle_weights(
 
 
 
-    report["total"] = sum(
+    result["total"] = sum(
 
         axle_weights
 
     )
 
 
-
-    report["centre_of_gravity"] = calculate_cargo_cg(
+    result["centre_of_gravity"] = calculate_cargo_cg(
 
         truck,
 
@@ -423,5 +429,4 @@ def calculate_axle_weights(
     )
 
 
-
-    return report
+    return result
